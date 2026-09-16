@@ -20,7 +20,7 @@ const statusNames={idle:'未开始',queued:'排队中',starting:'准备中',runn
 const roleIcons={boss:'👨🏻‍💼',tech:'🧑🏻‍🔬',builder:'👩🏻‍💻',ops:'🧑🏻‍💼',solo:'👩🏻‍💻',reviewer:'🧑🏻‍🔬',researcher:'🧑🏻‍💼'};
 const phaseNames={planning:'理解与拆解',executing:'推进任务',checking:'检查与验证',blocked:'处理阻塞',delivering:'整理交付'};
 const modeNames={team:'协作交付',solo:'直接执行',plan:'先出方案',chat:'项目对话'};
-let scenePersonOpen=false,bootstrapInstance='',state={missions:[],connection:{},defaultCwd:''},token='',selectedId=localStorage.getItem('office-selected')||'',selectedAgent='',activeTab='messages',office,director,eventStreamConnected=true,actorMapping=new Map(),labelElements=new Map(),previousMembers='',requestSignature='',modelsSignature='',feedSignature='',lastMissionId='',submitting=false,stream,toastTimer,autoScroll=true,createRequestId=crypto.randomUUID();
+let scenePersonOpen=false,selectedWork='',graphMaximized=localStorage.getItem('office-graph-maximized')==='true',bootstrapInstance='',state={missions:[],connection:{},defaultCwd:''},token='',selectedId=localStorage.getItem('office-selected')||'',selectedAgent='',activeTab='messages',office,director,eventStreamConnected=true,actorMapping=new Map(),labelElements=new Map(),previousMembers='',requestSignature='',modelsSignature='',feedSignature='',lastMissionId='',submitting=false,stream,toastTimer,autoScroll=true,createRequestId=crypto.randomUUID();
 const mission=()=>state.missions.find(m=>m.id===selectedId);
 let selectedProjectId=localStorage.getItem('office-project-selected')||'',navigationInitialized=false,sidebarSignature='',pendingProjectAction='',creationKind='goal';
 let archivedView=false;
@@ -190,11 +190,11 @@ function renderFeed(m){
     return `<article class="message ${escape(msg.kind)}" data-message-agent="${escape(msg.agentId)}">${head}${['delegation','collaboration'].includes(msg.kind)?`<details><summary>${msg.kind==='delegation'?'↗ 委派任务':'↔ 协作消息'} · ${escape(short(text.split('\n')[0],64))}</summary>${body}</details>`:body}</article>`;
   }).join('');
   else if(activeTab==='graph'){
-    const graph=collaborationGraph(m,id=>memberName(m,id));
+    const graph=collaborationGraph(m,id=>memberName(m,id),{selectedId:selectedWork,maximized:graphMaximized});
     const planned=(m?.workItems||[]).filter(w=>w.protocol===2&&!w.replacedBy).length,legacy=(m?.workItems||[]).length-planned;
     html=graph||`<div class="empty-state"><span class="empty-icon">⛬</span><h2>这个会话还没有任务图</h2><p>任务图只出现在<strong>目标</strong>会话里：规划者用 <code>office_submit_graph</code> 提交依赖图、或成员用 <code>office_split</code> 拆分任务后才会出现；对话和旧式临时分工不画图。</p>${legacy?`<p>本会话有 ${legacy} 项旧式分工，可在「工作计划」里查看。</p>`:''}<p>新建目标时选「协作交付」，把复杂工作交给团队即可。</p></div>`;
   }
-  else if(activeTab==='plan')html=collaborationGraph(m,id=>memberName(m,id))+collaborationPanel(m,id=>memberName(m,id))+m.agents.map(a=>`<section class="plan-agent"><h3>${escape(displayName(a))} ${a.dependsOn.length?` / 依赖 ${a.dependsOn.map(id=>escape(memberName(m,id))).join('、')}`:''}</h3>${a.plan.length?`<ol>${a.plan.map(s=>`<li class="${s.status}"><span>${s.status==='completed'?'✓':s.status==='inProgress'?'◉':'○'}</span>${escape(s.step)}</li>`).join('')}</ol>`:`<p class="no-plan">${escape(a.summary)}。该成员尚未提供步骤清单。</p>`}</section>`).join('');
+  else if(activeTab==='plan')html=collaborationPanel(m,id=>memberName(m,id))+m.agents.map(a=>`<section class="plan-agent"><h3>${escape(displayName(a))} ${a.dependsOn.length?` / 依赖 ${a.dependsOn.map(id=>escape(memberName(m,id))).join('、')}`:''}</h3>${a.plan.length?`<ol>${a.plan.map(s=>`<li class="${s.status}"><span>${s.status==='completed'?'✓':s.status==='inProgress'?'◉':'○'}</span>${escape(s.step)}</li>`).join('')}</ol>`:`<p class="no-plan">${escape(a.summary)}。该成员尚未提供步骤清单。</p>`}</section>`).join('');
   else if(activeTab==='events')html=[...m.events].reverse().map(e=>`<details class="event-entry ${e.kind==='error'?'error':''}"><summary><span>${e.kind==='commandExecution'?'⌘ ':e.kind==='fileChange'?'▤ ':''}${escape(short(e.text,160))}</span><small>${escape(memberName(m,e.agentId))} · ${timeLabel(e.createdAt)}</small><small>${escape(e.status||'')}</small></summary><pre>${escape(e.text)}${e.output?'\n\n'+escape(e.output):''}${e.exitCode!==undefined?'\nExit: '+escape(e.exitCode):''}${e.changes?'\n'+escape(e.changes.map(c=>c.path+'\n'+c.diff).join('\n')):''}</pre></details>`).join('');
   else if(activeTab==='files')html='<p class="file-note">点击预览可查看文档；展开文件可查看差异。文件保留在项目目录，较大内容会截断。</p>'+(m.files.length?m.files.map(f=>`<details class="file-entry"><summary>▤ ${escape(f.path)} <small>· ${f.source==='workspace'?'任务期间观察到':({completed:'已修改',inProgress:'修改中',failed:'修改失败'}[f.status]||escape(f.status))}</small> ${localFileLink(m.id,f.path)}</summary><pre>${escape(f.diff||f.content||'无文本内容可展示')}</pre></details>`).join(''):'<div class="empty-state"><span class="empty-icon">▤</span><p>还没有可展示的文件。</p></div>');
   const signature=activeTab+html;if(signature===feedSignature)return;
@@ -279,7 +279,7 @@ $('#maximize-view').onclick=()=>setMaximized(!maximized);
 $('#collapse-scene').onclick=()=>setSceneCollapsed(!sceneCollapsed);
 setSceneCollapsed(localStorage.getItem('office-scene-collapsed')==='true');
 setMaximized(localStorage.getItem('office-maximized')==='true');
-document.addEventListener('keydown',event=>{if(event.key!=='Escape'||$('#task-dialog').open||$('#project-dialog').open)return;if(maximized){event.preventDefault();setMaximized(false);}else if(sceneCollapsed){event.preventDefault();setSceneCollapsed(false);}});
+document.addEventListener('keydown',event=>{if(event.key!=='Escape'||$('#task-dialog').open||$('#project-dialog').open)return;if(graphMaximized){event.preventDefault();setGraphMaximized(false);}else if(maximized){event.preventDefault();setMaximized(false);}else if(sceneCollapsed){event.preventDefault();setSceneCollapsed(false);}});
 for(const selector of ['#new-top','#new-mission'])$(selector).onclick=()=>openTask();
 $('#new-top').textContent='＋ 新建目标';
 $('#new-project').onclick=()=>openProject();$('#new-chat').onclick=()=>openChat();
@@ -305,7 +305,16 @@ $('#mission-list').onclick=async e=>{
 };
 $('#member-list').onclick=e=>{const button=e.target.closest('[data-agent]');if(button){selectedAgent=button.dataset.agent;$('#message-target').value=selectedAgent;renderMembers(mission());syncScene(mission());}};
 $('.work-tabs').onclick=e=>{const button=e.target.closest('[data-tab]');if(!button)return;activeTab=button.dataset.tab;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));autoScroll=activeTab==='messages';feedSignature='';renderFeed(mission());};
-$('#feed').onclick=e=>{if(e.target.closest('[data-open-task]'))openTask();else if(e.target.closest('[data-open-chat]'))openChat();else if(e.target.closest('[data-open-project]'))openProject();};$('#feed').onscroll=()=>{autoScroll=$('#feed').scrollHeight-$('#feed').scrollTop-$('#feed').clientHeight<70;$('#jump-latest').hidden=autoScroll||activeTab!=='messages';};$('#jump-latest').onclick=()=>{autoScroll=true;$('#feed').scrollTop=$('#feed').scrollHeight;$('#jump-latest').hidden=true;};
+function setGraphMaximized(value){
+  graphMaximized=value;localStorage.setItem('office-graph-maximized',String(value));document.body.classList.toggle('graph-maximized',value);
+  feedSignature='';renderFeed(mission());
+}
+$('#feed').onclick=e=>{
+  if(e.target.closest('[data-dag-expand]')){setGraphMaximized(!graphMaximized);return;}
+  if(e.target.closest('[data-dag-close]')){selectedWork='';feedSignature='';renderFeed(mission());return;}
+  const node=e.target.closest('[data-dag-node]');
+  if(node){selectedWork=selectedWork===node.dataset.dagNode?'':node.dataset.dagNode;feedSignature='';renderFeed(mission());return;}
+  if(e.target.closest('[data-open-task]'))openTask();else if(e.target.closest('[data-open-chat]'))openChat();else if(e.target.closest('[data-open-project]'))openProject();};$('#feed').onscroll=()=>{autoScroll=$('#feed').scrollHeight-$('#feed').scrollTop-$('#feed').clientHeight<70;$('#jump-latest').hidden=autoScroll||activeTab!=='messages';};$('#jump-latest').onclick=()=>{autoScroll=true;$('#feed').scrollTop=$('#feed').scrollHeight;$('#jump-latest').hidden=true;};
 $('#task-model').onchange=renderEfforts;
 $('#role-models').addEventListener('change',()=>{const prefs=roleModelPrefs();for(const select of document.querySelectorAll('[data-role-model]'))prefs[select.dataset.roleModel]=select.value;localStorage.setItem('office-role-models',JSON.stringify(prefs));});
 $('#chat-model').addEventListener('change',e=>{const prefs=roleModelPrefs();prefs.tech=e.target.value;localStorage.setItem('office-role-models',JSON.stringify(prefs));});

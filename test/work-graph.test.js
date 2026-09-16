@@ -100,7 +100,7 @@ test('a long chain draws as rows instead of a sprawling strip, and long wait tex
   assert.ok(svg.includes('释放重叠路径'),'完整原因保留在悬停标题里');
   assert.equal((svg.match(/NaN/g)||[]).length,0);
   for(const [,x,y] of svg.matchAll(/transform="translate\(([\d.]+),([\d.]+)\)"/g))assert.ok(Number(x)>=0&&Number(x)<width&&Number(y)>=0&&Number(y)<height,`节点越出画布：${x},${y}`);
-  for(const [,text] of svg.matchAll(/<text class="dag-key"[^>]*>([^<]*)<\/text>/g))assert.ok(text.length<=18,`节点标题过长：${text}`);
+  for(const [,text] of svg.matchAll(/<text class="dag-key"[^>]*>([^<]*)<\/text>/g))assert.ok(text.length<=13,`节点标题每行不超过 13 字：${text}`);
   assert.equal((svg.match(/<g class="dag-node /g)||[]).length,7);
 });
 
@@ -111,4 +111,48 @@ test('the view reports hand-edited cyclic data instead of drawing a wrong order'
   assert.match(svg,/未排入批次（存在环）/);
   assert.equal((svg.match(/<g class="dag-node /g)||[]).length,2,'环上的节点仍要画出来');
   assert.equal(collaborationGraph(mission([])),'');
+});
+
+test('long keys wrap onto a second line instead of hiding their tail',()=>{
+  const long=work('w1','delivery-e2e-regression-suite');
+  const svg=collaborationGraph(mission([long]));
+  const lines=[...svg.matchAll(/<text class="dag-key"[^>]*>([^<]*)<\/text>/g)].map(match=>match[1]);
+  assert.equal(lines.length,2,'长 key 折成两行');
+  assert.equal(lines[0],'delivery-e2e','在分隔符处断开，而不是硬截断');
+  assert.match(lines[1],/^regression/);
+  assert.ok(svg.includes('delivery-e2e-regression-suite'),'完整 key 保留在悬停标题');
+  const single=[...collaborationGraph(mission([work('w2','auth-review')])).matchAll(/<text class="dag-key"[^>]*>([^<]*)<\/text>/g)].map(match=>match[1]);
+  assert.deepEqual(single,['auth-review'],'短 key 不折行');
+});
+
+test('clicking a node opens a detail card with everything the box cannot fit',()=>{
+  const detail=work('w9','deploy-a',{status:'ready',agentId:'agent-1',task:'把 e2e 交付跑到通过，并给出可复现证据',waitReason:{kind:'scope',message:'等待 鸣人 的工作单 auth-change 释放重叠路径 · 重叠路径：.scratch/delivery-e2e-20260916'},acceptance:['端到端可复现'],scope:{readPaths:['docs'],writePaths:['.scratch/delivery-e2e-20260916']}});
+  const closed=collaborationGraph(mission([detail]),id=>id==='agent-1'?'鸣人':'');
+  assert.ok(!closed.includes('data-dag-detail'),'未选中时不显示详情卡');
+  const open=collaborationGraph(mission([detail]),id=>id==='agent-1'?'鸣人':'',{selectedId:'w9'});
+  assert.match(open,/data-dag-detail/);
+  for(const text of ['把 e2e 交付跑到通过，并给出可复现证据','等待 鸣人 的工作单 auth-change 释放重叠路径','.scratch/delivery-e2e-20260916','端到端可复现','鸣人'])assert.ok(open.includes(text),`详情卡应显示：${text}`);
+  assert.match(open,/dag-node ready selected/,'选中的节点有选中态');
+  assert.match(open,/data-dag-close/,'详情卡可关闭');
+});
+
+test('the graph offers a maximize toggle that survives re-render',()=>{
+  const m=chain();
+  const normal=collaborationGraph(m);
+  assert.match(normal,/data-dag-expand/);
+  assert.match(normal,/⛶ 最大化任务图/);
+  assert.ok(!normal.includes('collaboration-dag maximized'));
+  const big=collaborationGraph(m,id=>id,{maximized:true});
+  assert.match(big,/collaboration-dag maximized/);
+  assert.match(big,/↙ 还原任务图/);
+  assert.match(big,/aria-pressed="true"/);
+});
+
+test('every node is keyboard reachable and carries its full aria label',()=>{
+  const m=mission([work('w1','api-contract',{status:'running',task:'先发布接口契约'})]);
+  const svg=collaborationGraph(m);
+  assert.match(svg,/data-dag-node="w1"/);
+  assert.match(svg,/tabindex="0"/);
+  assert.match(svg,/role="button"/);
+  assert.match(svg,/aria-label="api-contract[^"]*先发布接口契约|aria-label="api-contract[^"]*"/);
 });
