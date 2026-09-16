@@ -61,3 +61,25 @@ test('manual reconnect restarts the Codex runtime after an account switch withou
   assert.equal(runtimes.providers.codex.authenticated,true);
   assert.equal(runtimes.providers.zcode.authenticated,true);
 });
+
+test('ensureConnected 只重建掉线的运行环境，健康的进程不重启',async()=>{
+  const codex=new Bridge({type:'codex'},[{model:'gpt-6-astra',displayName:'GPT-6 Astra',supportedReasoningEfforts:[]}]);
+  const zcode=new Bridge({type:'zcode'},[{model:'GLM-5.3',displayName:'GLM-5.3',supportedReasoningEfforts:[]}]);
+  const runtimes=new OfficeRuntimes({codex,zcode});
+  await runtimes.start();
+  // 让 zcode 掉线，codex 保持健康
+  runtimes.providers.zcode={connected:false,authenticated:false,message:'ZCode 连接已关闭'};
+  const providers=await runtimes.ensureConnected();
+  assert.equal(zcode.restartCount,1,'掉线的运行环境被重建');
+  assert.equal(codex.restartCount,0,'健康的运行环境不动');
+  assert.equal(providers.zcode.authenticated,true);
+  assert.equal(providers.codex.authenticated,true);
+});
+
+test('全部健康时 ensureConnected 是空操作',async()=>{
+  const codex=new Bridge({type:'codex'},[]),zcode=new Bridge({type:'zcode'},[]);
+  const runtimes=new OfficeRuntimes({codex,zcode});
+  await runtimes.start();
+  await runtimes.ensureConnected();
+  assert.equal(codex.restartCount+zcode.restartCount,0);
+});

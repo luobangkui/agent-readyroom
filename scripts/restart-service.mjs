@@ -55,19 +55,32 @@ if(snapshot&&!force){
     process.exit(1);
   }
 }
-await run('launchctl',['kill','SIGTERM',`gui/${process.getuid()}/${label}`]).catch(error=>{throw new Error(`launchctl 重启失败：${error.message}`);});
+await run('launchctl',['kill','SIGTERM',`gui/${process.getuid()}/${label}`]).catch(error=>{
+  // 服务刚好处于"已退出、尚在拉起"的窗口时没有进程可发信号，这不是失败：
+  // 下面的就绪轮询会继续等它起来。
+  if(/No process to signal/i.test(String(error.stderr||error.message)))console.log('服务当前没有在跑的进程，直接等它拉起。');
+  else throw new Error(`launchctl 重启失败：${error.message}`);
+});
 // Wait for the runtime bridges to settle: an immediately-answering service can
 // still be in the middle of connecting Codex/ZCode/DSH.
-const deadline=Date.now()+40000;
+// 等到所有运行环境都就绪再报成功：重启后 ZCode/DSH 要拉起子进程，几秒内
+// providers 可能只有一部分，这时候报"已重启"会让人以为连接已经好了。
+const EXPECTED=(process.env.OFFICE_RUNTIMES||'codex,zcode,dsh').split(',').map(name=>name.trim()).filter(Boolean);
+const readyTimeoutMs=Number(process.env.OFFICE_RESTART_READY_TIMEOUT_MS)||60000;
+const deadline=Date.now()+readyTimeoutMs;
+const pending=new Set(EXPECTED);
 while(Date.now()<deadline){
-  await new Promise(resolve=>setTimeout(resolve,1000));
+  await new Promise(resolve=>setTimeout(resolve,1500));
   try{
-    const next=await bootstrap(2000),providers=Object.entries(next.connection.providers||{});
-    if(!providers.length)continue;
-    const report=providers.map(([name,status])=>`${name}:${status.authenticated?'已连接':status.connected?'未认证':'未连接'}`);
+    const next=await bootstrap(2000),providers=next.connection.providers||{};
+    for(const name of EXPECTED)if(providers[name]?.authenticated)pending.delete(name);
+    if(pending.size)continue;
+    const report=EXPECTED.map(name=>`${name}:${providers[name]?.authenticated?'已连接':providers[name]?.connected?'未认证':'未连接'}`);
     console.log(`✓ 服务已重启：${report.join(' · ')}`);
-    process.exit(providers.some(([,status])=>status.connected)?0:1);
+    process.exit(0);
   }catch{}
 }
+for(const name of pending)console.log(`⚠️  ${name} 在 ${Math.round(readyTimeoutMs/1000)} 秒内没有就绪：可在页面点「重建本地连接」或检查该运行环境的登录状态。`);
+process.exit(pending.size?1:0);
 console.error('服务在 30 秒内没有重新就绪，请查看 ~/Library/Logs/Readyroom/stderr.log');
 process.exit(1);

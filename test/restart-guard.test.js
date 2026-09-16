@@ -8,7 +8,7 @@ const run=promisify(execFile);
 const script=fileURLToPath(new URL('../scripts/restart-service.mjs',import.meta.url));
 
 const fixture=async(t,missions)=>{const server=http.createServer((request,response)=>{response.setHeader('Content-Type','application/json');response.end(JSON.stringify({connection:{providers:{codex:{connected:true,authenticated:true}}},missions}));});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close());return server.address().port;};
-const call=async port=>run(process.execPath,[script],{env:{...process.env,OFFICE_PORT:String(port)}}).then(result=>({...result,code:0}),error=>({stdout:error.stdout||'',stderr:error.stderr||'',code:error.code}));
+const call=async(port,extra={})=>run(process.execPath,[script],{env:{...process.env,OFFICE_PORT:String(port),OFFICE_RUNTIMES:'codex',OFFICE_RESTART_READY_TIMEOUT_MS:'1500',...extra}}).then(result=>({...result,code:0}),error=>({stdout:error.stdout||'',stderr:error.stderr||'',code:error.code}));
 
 test('the restart helper refuses to interrupt a running mission',async t=>{
   const port=await fixture(t,[{title:'正在跑的目标',status:'running',agents:[{name:'鸣人',status:'running',summary:'正在实现接口'}]}]);
@@ -41,4 +41,12 @@ test('the restart helper re-checks just before killing',async t=>{
   assert.equal(result.code,1,'复查发现有人在跑时应当中止');
   assert.match(result.stdout,/复查发现刚刚有任务开始执行/);
   assert.match(result.stdout,/鸣人/);
+});
+
+test('the restart helper waits for every runtime and warns about the ones still down',async t=>{
+  const port=await fixture(t,[]);
+  const result=await call(port,{OFFICE_RUNTIMES:'codex,zcode'});
+  assert.equal(result.code,1,'有运行环境没就绪时以失败退出，便于脚本发现');
+  assert.match(result.stdout,/zcode 在 2 秒内没有就绪|zcode 在 1 秒内没有就绪/);
+  assert.match(result.stdout,/重建本地连接/);
 });

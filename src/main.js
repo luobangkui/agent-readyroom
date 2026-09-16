@@ -379,6 +379,8 @@ $('#resume-mission').onclick=async()=>{
   try{
     const result=await api(`/missions/${m.id}/resume`,{retryFailed:true});
     const parts=[];
+    if(result.reconnected?.length)parts.push(`重建 ${result.reconnected.join('、')} 连接`);
+    if(result.stillOffline?.length)parts.push(`${result.stillOffline.join('、')} 仍未连接，工作单会等它`);
     if(result.requeued?.length)parts.push(`重新排队 ${result.requeued.length} 项`);
     if(result.retried?.length)parts.push(`重试失败 ${result.retried.length} 项`);
     if(result.revived?.length)parts.push(`复位 ${result.revived.length} 位成员`);
@@ -391,6 +393,16 @@ $('#resume-mission').onclick=async()=>{
 $('#stop-mission').onclick=async()=>{const m=mission();if(!m)return;$('#stop-mission').disabled=true;try{await api(`/missions/${m.id}/stop`,{});toast('已请求停止，文件和对话会保留。');}catch(error){toast(error.message);$('#stop-mission').disabled=false;}};
 $('#accept-mission').onclick=async()=>{try{await api(`/missions/${mission().id}/accept`,{});toast('这次交付已验收。');}catch(error){toast(error.message);}};
 $('#requests').onclick=async e=>{const option=e.target.closest('[data-answer-option]');if(option){const card=option.closest('[data-request]');[...card.querySelectorAll('[data-question-input]')].find(input=>input.dataset.questionInput===option.dataset.question).value=option.dataset.answerOption;return;}const button=e.target.closest('[data-request-action]');if(!button)return;const card=button.closest('[data-request]'),action=button.dataset.requestAction;button.disabled=true;try{const answers=Object.fromEntries([...card.querySelectorAll('[data-question-input]')].map(input=>[input.dataset.questionInput,input.value]));await api(`/missions/${mission().id}/answer`,{requestId:card.dataset.request,decision:action,answers});}catch(error){toast(error.message);button.disabled=false;}};
-$('#reconnect').onclick=async()=>{$('#reconnect').disabled=true;try{const snapshot=await api('/connect',{provider:'codex'});applySnapshot(snapshot);toast(snapshot.connection.providers?.codex?.authenticated?'本地 Codex 连接已重建':'Codex 尚未登录，请先在 Codex 中完成登录。');}catch(error){toast(error.message);}finally{$('#reconnect').disabled=false;}};
+$('#reconnect').onclick=async()=>{
+  const button=$('#reconnect');button.disabled=true;
+  try{
+    const snapshot=await api('/connect',{force:true});
+    applySnapshot(snapshot);
+    const providers=snapshot.connection.providers||{};
+    const offline=Object.entries(providers).filter(([,status])=>!status.connected||!status.authenticated).map(([name])=>name);
+    toast(offline.length?`已重建本地连接；${offline.join('、')} 仍未就绪：${offline.map(name=>providers[name].message).join('；')}`:'本地运行环境已全部重建：Codex · ZCode · DSH。');
+  }catch(error){toast(error.message);}
+  finally{button.disabled=false;}
+};
 async function connect(){try{const response=await fetch('/api/bootstrap');if(!response.ok)throw new Error('服务尚未就绪');const data=await response.json();token=data.token;bootstrapInstance=data.instanceId;applySnapshot(data);stream?.close();stream=new EventSource('/api/events');stream.addEventListener('snapshot',event=>{const snapshot=JSON.parse(event.data);if(snapshot.instanceId!==bootstrapInstance){stream.close();void connect();return;}eventStreamConnected=true;applySnapshot(snapshot);$('#sync-status').textContent='◉ 实时同步';});stream.onerror=()=>{eventStreamConnected=false;syncScene(mission());$('#sync-status').textContent='◌ 正在恢复同步';};}catch(error){state.connection={connected:false,message:error.message};render();$('#runtime-note').textContent='本地服务未启动';setTimeout(connect,4000);}}
 setInterval(renderElapsed,1000);render();void connect();

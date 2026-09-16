@@ -15,10 +15,10 @@ const textOf=result=>typeof result==='string'?result:typeof result?.output==='st
 // MissionService. All model calls still run in ZCode's actual session runtime.
 export class ZcodeBridge extends EventEmitter {
   constructor({cwd=process.cwd(),binary=process.env.OFFICE_ZCODE_BIN||'/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs',configLoader=readZcodeConfig,spawnProcess=spawn}={}){
-    super();this.cwd=cwd;this.binary=binary;this.configLoader=configLoader;this.spawnProcess=spawnProcess;this.pending=new Map();this.clientRequests=new Map();this.sessions=new Map();this.sequence=0;this.ready=false;this.child=null;this.starting=null;this.models=[];
+    super();this.cwd=cwd;this.binary=binary;this.configLoader=configLoader;this.spawnProcess=spawnProcess;this.pending=new Map();this.clientRequests=new Map();this.sessions=new Map();this.sequence=0;this.ready=false;this.child=null;this.starting=null;this.models=[];this.lastStartAttempt=0;this.lastError='';
   }
   scrub(value){let text=String(value??'');for(const secret of Object.values(this.config?.env||{}))if(secret)text=text.split(secret).join('[redacted]');return text;}
-  start(){if(this.ready)return Promise.resolve();if(this.starting)return this.starting;this.starting=this.connect().catch(error=>{this.child?.kill();throw error;}).finally(()=>{this.starting=null;});return this.starting;}
+  start(){if(this.ready)return Promise.resolve();if(this.starting)return this.starting;this.lastStartAttempt=Date.now();this.starting=this.connect().catch(error=>{this.lastError=this.scrub?this.scrub(error.message):error.message;this.child?.kill();throw error;}).finally(()=>{this.starting=null;});return this.starting;}
   async connect(){
     if(!existsSync(this.binary))throw new Error('未找到 ZCode 运行程序，可设置 OFFICE_ZCODE_BIN 指向本机 zcode.cjs。');
     this.config=await this.configLoader();
@@ -35,6 +35,17 @@ export class ZcodeBridge extends EventEmitter {
       this.models.push({model:available.ref.modelId,displayName:available.label,provider:'zcode',supportedReasoningEfforts:(available.reasoning?.levels||[]).map(e=>({reasoningEffort:e.value}))});
     }
     this.ready=true;this.emit('connected');
+  }
+  // 和 Codex/DSH 一样参与运行环境的定期 reconcile：ZCode 启动较慢或第一次
+  // 启动失败时，不只是显示未连接，而是限流重试一次，连上后自动恢复派发。
+  async pollStatus(){
+    if(this.ready)return {connected:true,authenticated:true,message:'已连接'};
+    if(!this.child&&!this.starting&&Date.now()-(this.lastStartAttempt||0)>60000){
+      this.lastStartAttempt=Date.now();
+      try{await this.start();}catch{}
+    }
+    if(this.ready)return {connected:true,authenticated:true,message:'已连接'};
+    return {connected:!!this.child,authenticated:false,message:this.lastError?`ZCode 启动失败：${String(this.lastError).slice(0,200)}`:'ZCode 正在连接'};
   }
   send(msg){if(!this.child?.stdin.writable)throw new Error('ZCode 尚未连接');this.child.stdin.write(JSON.stringify(msg)+'\n');}
   rpc(method,params={},timeout=45000){return new Promise((resolve,reject)=>{const id=++this.sequence,timer=setTimeout(()=>{this.pending.delete(id);reject(new Error(`ZCode 请求超时：${method}`));},timeout);this.pending.set(id,{resolve,reject,timer});try{this.send({id,method,params});}catch(error){clearTimeout(timer);this.pending.delete(id);reject(error);}});}

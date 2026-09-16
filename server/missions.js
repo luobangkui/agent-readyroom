@@ -65,11 +65,28 @@ export class MissionService extends EventEmitter {
       this.touch();this.schedule();
     });
   }
+  // 读取当前运行环境与模型目录；reconnect 为真时先重建掉线的连接。
+  async refreshConnection({reconnect=false,provider='codex'}={}){
+    try{
+      if(reconnect&&typeof this.bridge.reconnect==='function')await this.bridge.reconnect(provider);
+      else if(reconnect)await this.bridge.start();
+      else if(typeof this.bridge.ensureConnected==='function')await this.bridge.ensureConnected();
+      else await this.bridge.start();
+      const [account,catalog]=await Promise.all([this.bridge.request('account/read',{}),this.bridge.request('model/list',{includeHidden:false})]);
+      this.connection={connected:!!account.account,authenticated:!!account.account,authType:account.account?.type||null,providers:account.providers,models:catalog.data.map(m=>({id:m.model,name:m.displayName,provider:m.provider||'codex',efforts:m.supportedReasoningEfforts.map(e=>e.reasoningEffort)})),message:account.account?'已连接本机运行环境':'请先连接 Codex、ZCode 或 DSH'};
+    }catch(error){this.connection={...this.connection,connected:false,message:error.message};}
+    this.touch();return this.connection;
+  }
+  // 重建本地连接：默认只处理掉线的运行环境，force 时全部重启（登录/切换账号后使用）。
+  async reconnectRuntimes({provider='',force=false}={}){
+    this.touch();
+    return this.refreshConnection({reconnect:true,provider:force?(provider||''):provider});
+  }
   async connect({force=false,provider='codex'}={}){
-    try{if(force&&typeof this.bridge.reconnect==='function')await this.bridge.reconnect(provider);else await this.bridge.start();const [account,catalog]=await Promise.all([this.bridge.request('account/read',{}),this.bridge.request('model/list',{includeHidden:false})]);
-      this.connection={connected:!!account.account,authenticated:!!account.account,authType:account.account?.type||null,providers:account.providers,models:catalog.data.map(m=>({id:m.model,name:m.displayName,provider:m.provider||'codex',efforts:m.supportedReasoningEfforts.map(e=>e.reasoningEffort)})),message:account.account?'已连接本机运行环境':'请先连接 Codex 或 ZCode'};
-      await Promise.all(this.missions.filter(m=>m.status==='completed'&&!m.files.length).map(m=>collectArtifacts(m).catch(()=>{})));
-    }catch(error){this.connection={...this.connection,connected:false,message:error.message};}this.touch();return this.connection;
+    if(force)await this.refreshConnection({reconnect:true,provider});
+    else await this.refreshConnection();
+    await Promise.all(this.missions.filter(m=>m.status==='completed'&&!m.files.length).map(m=>collectArtifacts(m).catch(()=>{})));
+    return this.connection;
   }
   snapshot(){return {instanceId:this.instanceId,capabilities:{missionArchive:true,creationAvatars:true,scopedCollaboration:true,localFilePreview:true,inputReadyHarness:true},connection:this.connection,team:TEAM,defaultCwd:this.defaultCwd,projects:this.projects.projects,missions:this.missions.map(({baseline,artifactVersions,...m})=>({...m,...(m.harnessVersion?{harnessMetrics:harnessMetrics(m),artifactVersions:(artifactVersions||[]).map(({files,...v})=>({...v,files:files.map(({content,...f})=>f)}))}:{})})),serverTime:now()};}
   async createProject(data){const project=await this.projects.create(data);this.touch();return project;}
@@ -455,6 +472,15 @@ export class MissionService extends EventEmitter {
   async resume(id,{agentId='',retryFailed=false}={}){
     const m=this.get(id);
     if(m.archivedAt)throw Object.assign(new Error('这条记录已归档，请先恢复再继续。'),{status:409});
+    // 恢复前先确认运行环境：连接没重建起来的话，工作单只会停在"等待模型连接"，
+    // 看起来像"点了继续也没用"。这里只重建掉线的那几个，健康的进程不动。
+    const before=this.connection.providers||{};
+    const offline=Object.entries(before).filter(([,status])=>!status?.connected||!status?.authenticated).map(([name])=>name);
+    if(offline.length&&typeof this.bridge.ensureConnected==='function'){
+      await this.refreshConnection();
+      this.event(m,null,`恢复前重建运行环境：${offline.join('、')} → ${offline.map(name=>{const status=this.connection.providers?.[name];return `${name} ${status?.authenticated?'已连接':'仍未连接'}`}).join('、')}`,'status');
+    }
+    const stillOffline=Object.entries(this.connection.providers||{}).filter(([,status])=>!status?.connected||!status?.authenticated).map(([name])=>name);
     // 指定成员：只恢复这一位（界面里失败成员旁边的「重试」）
     if(agentId){
       const agent=this.agent(m,agentId);
@@ -470,7 +496,7 @@ export class MissionService extends EventEmitter {
       this.event(m,agent,`用户手动恢复 ${agent.name}${requeued.length?`，重新排队 ${requeued.join('、')}`:'，清除了过期的失败状态'}`,'human');
       if(!this.save())throw Object.assign(new Error('恢复操作未保存，请重试。'),{status:500});
       this.teamChanged(m);this.schedule();
-      return {mission:m,requeued,retried:requeued,revived:[agent.name],needsPlanner:[],held:[]};
+      return {mission:m,requeued,retried:requeued,revived:[agent.name],needsPlanner:[],held:[],reconnected:offline,stillOffline};
     }
     if(m.agents.some(a=>ACTIVE.has(a.status)||a.status==='queued'))throw Object.assign(new Error('还有成员在执行或排队，等这一轮结束后再继续。'),{status:409});
     const requeued=[],needsPlanner=[],held=[],retried=[];
@@ -522,7 +548,7 @@ export class MissionService extends EventEmitter {
     this.event(m,null,`用户请求继续：重新排队 ${requeued.length} 项工作单${retried.length?`（含失败重试：${retried.join('、')}）`:''}${revived.length?`，恢复 ${revived.length} 位成员`:''}${needsPlanner.length?`，${needsPlanner.length} 项未成功工作单交给规划者`:''}${held.length?`；${held.join('、')} 需要你确认副作用后再重试`:''}`,'human');
     if(!this.save())throw Object.assign(new Error('继续操作未保存，请重试。'),{status:500});
     this.teamChanged(m);this.schedule();
-    return {mission:m,requeued,retried,revived,needsPlanner,held};
+    return {mission:m,requeued,retried,revived,needsPlanner,held,reconnected:offline,stillOffline};
   }
   async stop(id){
     const m=this.get(id);m.status='stopping';this.touch(m);

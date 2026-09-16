@@ -41,7 +41,7 @@ const server=http.createServer(async(req,res)=>{
       const data=await body(req);
       const fileRoute=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/file$/);
       if(fileRoute){const result=await readDocument(service.get(fileRoute[1]),data.path,{raw:data.raw===true});if(data.raw===true){res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(result.name).replace(/[!'()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase())}`,'Cache-Control':'no-store'});res.end(result.data);}else json(res,200,result);return;}
-      if(url.pathname==='/api/connect'){await service.connect({force:true,provider:data.provider||'codex'});json(res,200,service.snapshot());return;}
+      if(url.pathname==='/api/connect'){await service.reconnectRuntimes({provider:typeof data.provider==='string'?data.provider:'',force:data.force!==false});json(res,200,service.snapshot());return;}
       if(url.pathname==='/api/pick-directory'){const cwd=await pickDirectory();json(res,200,{cwd});return;}
       if(url.pathname==='/api/projects'){json(res,201,{project:await service.createProject(data)});return;}
       if(url.pathname==='/api/missions'){

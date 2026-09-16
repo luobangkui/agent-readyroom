@@ -196,3 +196,27 @@ test('一键继续：超时中断的工作单也会被重试，并在结果里�
   assert.deepEqual(result.requeued.sort(),['api','leaf'],'用户明确授权后超时工作单也重新排队');
   assert.equal(leaf.timeoutRequestedAt,null,'清掉超时标记，避免立刻又被判超时');
 });
+
+test('一键继续：先重建掉线的运行环境，再做恢复；仍连不上会在结果里说明',async t=>{
+  const f=await crashed(t);
+  const calls=[];
+  f.service.bridge={...f.service.bridge,ensureConnected:async()=>{calls.push('ensureConnected');f.service.connection={...f.service.connection,providers:{...f.service.connection.providers,ops:{connected:true,authenticated:true,message:'已连接'}}};}};
+  f.service.connection={...f.service.connection,providers:{...f.service.connection.providers,ops:{connected:false,authenticated:false,message:'DSH 尚未连接'}}};
+  const result=await f.service.resume(f.mission.id,{retryFailed:true});
+  await tick();
+  assert.deepEqual(calls,['ensureConnected'],'恢复前会尝试重建连接');
+  assert.deepEqual(result.reconnected,['ops'],'结果里报告重建了哪个运行环境');
+  assert.deepEqual(result.stillOffline,[],'重建后不再有掉线的');
+  assert.ok(result.requeued.length>0,'连接恢复后照常重新排队');
+});
+
+test('一键继续：连接仍不可用时照样排队，但会明确告知还在等它',async t=>{
+  const f=await crashed(t);
+  f.service.bridge={...f.service.bridge,ensureConnected:async()=>{}};
+  f.service.connection={...f.service.connection,providers:{...f.service.connection.providers,ops:{connected:false,authenticated:false,message:'DSH 尚未连接'}}};
+  const result=await f.service.resume(f.mission.id,{retryFailed:true});
+  await tick();
+  assert.deepEqual(result.reconnected,['ops']);
+  assert.deepEqual(result.stillOffline,['ops'],'仍掉线的运行环境被单独列出');
+  assert.ok(f.mission.events.some(event=>/仍未连接/.test(event.text)),'执行记录里写明结果');
+});

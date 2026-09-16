@@ -28,7 +28,7 @@ export class OfficeRuntimes extends EventEmitter {
     await Promise.all(Object.entries(this.backends).filter(([,bridge])=>bridge).map(async([provider,bridge])=>{try{await bridge.start();const account=await bridge.request('account/read');this.providers[provider]={connected:true,authenticated:!!account.account,message:account.account?'已连接':loginHint(provider)};}catch(error){this.providers[provider]={connected:false,authenticated:false,message:error.message};}}));
   }
   async reconnect(provider='codex'){
-    const names=provider?[provider]:Object.keys(this.backends);
+    const names=Array.isArray(provider)?provider:provider?[provider]:Object.keys(this.backends);
     await Promise.all(names.map(async name=>{
       const bridge=this.backends[name];if(!bridge)throw new Error(`未知运行环境：${name}`);
       try{
@@ -38,6 +38,14 @@ export class OfficeRuntimes extends EventEmitter {
         this.providers[name]={connected:true,authenticated:!!account.account,message:account.account?'已连接':loginHint(name)};
       }catch(error){this.providers[name]={connected:false,authenticated:false,message:error.message};}
     }));
+    return this.providers;
+  }
+  // 重建掉线的运行环境（已连接的保持不动，避免白重启进程）。
+  // 供「继续推进 / 重建本地连接」在派发前调用：连接没恢复的话，工作单只会
+  // 停在"等待模型连接"，看起来像恢复失败。
+  async ensureConnected(){
+    const broken=Object.entries(this.providers).filter(([,status])=>!status?.connected||!status?.authenticated).map(([name])=>name);
+    if(broken.length)await this.reconnect(broken);
     return this.providers;
   }
   getFor(params){
