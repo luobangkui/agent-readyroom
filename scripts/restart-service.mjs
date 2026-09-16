@@ -57,7 +57,7 @@ if(snapshot&&!force){
 }
 await run('launchctl',['kill','SIGTERM',`gui/${process.getuid()}/${label}`]).catch(error=>{throw new Error(`launchctl 重启失败：${error.message}`);});
 // Wait for the runtime bridges to settle: an immediately-answering service can
-// still be in the middle of connecting Codex/ZCode/DSH/Edge0.
+// still be in the middle of connecting Codex/ZCode/DSH.
 const deadline=Date.now()+40000;
 while(Date.now()<deadline){
   await new Promise(resolve=>setTimeout(resolve,1000));

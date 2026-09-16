@@ -2,7 +2,7 @@
 
 ## 目标与边界
 
-让四个固定岗位在按岗位选择模型时，除了云端 Codex / ZCode 和纯对话的本机 Edge0，还可以选 DeepSeek Harness（`dsh`）的模型，尤其是 **DeepSeek-V41-Flash**（`deepseek-flash`）。DSH 成员要有真实文件、命令、搜索能力，并继续使用待命室的 `office_*` 协作工具、调度、范围锁、证据与审批流程；不新增第二套调度，不改动 Codex / ZCode / Edge0 现有行为。
+让四个固定岗位在按岗位选择模型时，除了云端 Codex / ZCode，还可以选 DeepSeek Harness（`dsh`）的模型，尤其是 **DeepSeek-V41-Flash**（`deepseek-flash`）。DSH 成员要有真实文件、命令、搜索能力，并继续使用待命室的 `office_*` 协作工具、调度、范围锁、证据与审批流程；不新增第二套调度，不改动 Codex / ZCode 现有行为。
 
 不在本次范围：把 DSH 的 Web/TUI 界面嵌进工作台、多 harness 实例隔离、harness 侧的计费统计、DSH 的会话标题与计划面板。
 

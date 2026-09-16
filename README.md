@@ -2,7 +2,7 @@
 
 > 一间跑在本机的 3D 待命室：四个固定岗位的 AI 成员坐在同一间屋子里干活。规划者把目标拆成**无环任务图**，程序按输入就绪**并行派发**，产出必须留下**可复现证据**，再由另一位成员**独立复核**。
 
-**English** — Readyroom is a local, single-machine 3D workbench where a fixed four-role AI crew (plan / contract / build / verify) shares one room, turns a goal into an acyclic task graph, and works it in parallel under scope locks, staged contracts, independent review and evidence gates. It drives Codex, ZCode, DeepSeek Harness (DSH) or a local Edge0 model, one runtime per role. UI, prompts and docs are in Chinese.
+**English** — Readyroom is a local, single-machine 3D workbench where a fixed four-role AI crew (plan / contract / build / verify) shares one room, turns a goal into an acyclic task graph, and works it in parallel under scope locks, staged contracts, independent review and evidence gates. It drives Codex, ZCode and DeepSeek Harness (DSH), one runtime per role. UI, prompts and docs are in Chinese.
 
 ![Readyroom 工作台：木叶庭院主题下的四个工位](docs/images/readyroom-workbench.jpg)
 
@@ -15,7 +15,7 @@
 - **阶段契约**：`office_publish` snapshots 一个带 SHA-256 的不可变版本，`office_validate` 要求非作者独立验证；消费者按 `name:version` 消费快照，接口就绪即可开工，不必等作者整轮结束。
 - **证据与独立复核**：每份工作单用 `office_report` 逐条对应验收条件提交检查证据；写入成果必须由另一位成员只读复核，作者不能自审，改动会让旧复核失效。
 - **关键路径优先的派发**：候选排序 = 优先级 + 下游最长链 + 续接奖励 + 等待时长；一轮调度把就绪工作同时派给所有空闲且岗位匹配的成员。
-- **四个运行环境，按岗位选模型**：Codex、ZCode、DSH（DeepSeek Harness）、本机 Edge0 可混用，创建目标时为每个岗位单独指定。
+- **三个运行环境，按岗位选模型**：Codex、ZCode、DSH（DeepSeek Harness）可混用，创建目标时为每个岗位单独指定。
 - **3D 场景就是状态**：人物走动、落座、交流、气泡都来自真实事件；暂停动画不影响模型任务。
 - **全部本机**：只监听 `127.0.0.1`，校验 Host/Origin 与会话令牌；数据落在 `.office-data/`（不入 Git），模型凭证始终由各运行环境自己管理。
 
@@ -38,7 +38,6 @@ npm start            # → http://127.0.0.1:4317/
 | **Codex** | 本机 Codex 登录（`npx codex login`）；项目自带 `@openai/codex 0.153.4`，不动全局 | 文件、命令、网络，四个岗位通用 |
 | **ZCode** | ZCode 中已配置 GLM 提供方 | 同上 |
 | **DSH**（DeepSeek Harness） | 本机 `dsh` 可用并已登录 | 同上；默认工作区可写、敏感操作弹出授权卡 |
-| **Edge0** | 本机 `127.0.0.1:8000` 的 OpenAI 兼容服务 | 纯对话：不读写文件、不执行命令、不联网 |
 
 模型目录来自各运行环境的实时列表，界面里按 `运行环境` 分组显示，不会静默替换你选的模型。
 
@@ -106,7 +105,7 @@ server/
   work-state.js       状态迁移与等待计时
   prompts.js          岗位合同与 office_* 工具 schema
   roster.js / projects.js / documents.js / artifacts.js
-  codex.js / zcode.js / zcode-config.js / edge0.js / dsh.js    四个运行环境桥接
+  codex.js / zcode.js / zcode-config.js / dsh.js    三个运行环境桥接
   office-mcp.mjs      以 stdio MCP 暴露协作工具（每会话独立令牌）
 src/
   main.js             工作台界面与实时渲染

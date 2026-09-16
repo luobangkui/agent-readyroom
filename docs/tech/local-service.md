@@ -71,8 +71,6 @@ launchctl bootout gui/$(id -u)/local.readyroom
 | `OFFICE_MAX_SESSIONS` / `OFFICE_MAX_WORKERS` / `OFFICE_MAX_BOSSES` | 全局活跃会话 / 每目标执行成员 / 活跃老板上限 | `6` / `3` / `2` |
 | `OFFICE_CODEX_BIN` / `OFFICE_CODEX_WEB_SEARCH` | Codex 可执行文件、联网搜索模式 | 项目内 `node_modules/.bin/codex`、`live` |
 | `OFFICE_ZCODE_BIN` / `OFFICE_ZCODE_CONFIG` | ZCode 程序与配置路径 | `/Applications/ZCode.app/.../zcode.cjs`、`~/.zcode/v2/config.json` |
-| `OFFICE_EDGE0_URL` / `OFFICE_EDGE0_MAX_TOKENS` / `OFFICE_EDGE0_HISTORY_MESSAGES` | 本机 Edge0 服务地址、单轮上限、携带历史消息条数 | `http://127.0.0.1:8000`、`2048`、`12` |
-| `OFFICE_EDGE0_PYTHON` / `OFFICE_EDGE0_CONTROL` | Edge0 未启动时自动拉起用的解释器与脚本；留空则不自动拉起 | 空 |
 | `OFFICE_DSH_BIN` / `OFFICE_DSH_PROFILE` / `OFFICE_DSH_PERMISSION_MODE` / `OFFICE_DSH_PATCH` | DSH 可执行文件、profile、权限模式与自定义覆盖补丁 | 自动探测 `dsh`、`acp`、空、空 |
 
 ## 排障

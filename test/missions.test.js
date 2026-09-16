@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
-import os from 'node:os';
+import os,{tmpdir} from 'node:os';
 import path from 'node:path';
 import {MissionService} from '../server/missions.js';
 import {instructions} from '../server/prompts.js';
+import {TEAM} from '../src/team.js';
 
 class Bridge extends EventEmitter {
   constructor(){super();this.calls=[];this.responses=[];this.seq=0;}
@@ -126,4 +127,26 @@ test('restarting the service rebinds an already saved mission to the character i
   const reloaded=second.missions.find(entry=>entry.id===m.id),reloadedBuilder=reloaded.agents.find(a=>a.role==='builder');
   assert.equal(reloadedBuilder.avatarId,'naruto-custom');assert.equal(reloadedBuilder.name,'鸣人');
   assert.match(instructions(reloaded,reloadedBuilder),/你的名字：鸣人/);
+});
+
+test('已移除的 Edge0 运行环境：历史会话成员切回岗位默认模型并保留人物',async t=>{
+  const directory=mkdtempSync(path.join(tmpdir(),'office-edge0-retire-')),cwd=path.join(directory,'project');mkdirSync(cwd);
+  const bridge=new EventEmitter();bridge.request=async()=>({});
+  const first=new MissionService(bridge,{directory,defaultCwd:cwd});
+  first.connection={connected:true,authenticated:true,models:TEAM.map(agent=>({id:agent.model,efforts:['high']}))};
+  const mission=await first.create({kind:'chat',roleModels:{tech:'gpt-6-astra'}});
+  // 造出旧现场：四个成员都选了已经下线的本机 Edge0
+  for(const agent of mission.agents){agent.provider='edge0';agent.model='edge0-35b';agent.modelName='Edge0 35B（本机）';agent.threadId=`edge0:${agent.id}`;}
+  const names=mission.agents.map(agent=>agent.name);
+  first.save();clearInterval(first.harnessTimer);clearTimeout(first.saveTimer);clearTimeout(first.broadcastTimer);
+
+  const reloaded=new MissionService(bridge,{directory,defaultCwd:cwd});
+  t.after(()=>{clearInterval(reloaded.harnessTimer);clearTimeout(reloaded.saveTimer);clearTimeout(reloaded.broadcastTimer);rmSync(directory,{recursive:true,force:true});});
+  const restored=reloaded.missions.find(entry=>entry.id===mission.id);
+  assert.equal(restored.agents.some(agent=>agent.provider==='edge0'),false,'不再有成员指着已移除的运行环境');
+  assert.equal(restored.agents.every(agent=>['codex','zcode','dsh'].includes(agent.provider)),true,'都回到仍然存在的运行环境');
+  assert.equal(restored.agents.every(agent=>agent.threadId===null),true,'清掉指向已下线服务的线程引用');
+  assert.equal(restored.agents.every(agent=>agent.model!=='edge0-35b'),true,'模型换回岗位默认');
+  assert.deepEqual(restored.agents.map(agent=>agent.name),names,'人物与岗位保持不变');
+  assert.equal(restored.events.some(event=>/Edge0 运行环境已移除/.test(event.text)),true,'执行记录里说明这次迁移');
 });

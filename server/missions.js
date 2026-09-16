@@ -40,6 +40,17 @@ export class MissionService extends EventEmitter {
     if(existsSync(this.file)){const saved=readFileSync(this.file,'utf8');this.missions=JSON.parse(saved);if(this.missions.some(m=>m.rosterVersion!==1)&&!existsSync(this.file+'.before-roster-v1'))writeFileSync(this.file+'.before-roster-v1',saved,{mode:0o600});for(const m of this.missions){for(const a of m.agents){if(ACTIVE.has(a.status)||a.status==='queued')a.status='interrupted';a.turnId=null;}for(const r of m.requests??[])if(r.status==='pending')r.status='expired';if(!TERMINAL.has(m.status))m.status='interrupted';}}
     this.projects=new ProjectStore(directory);
     let rosterChanged=this.projects.migrate(this.missions);for(const m of this.missions){for(const w of m.workItems||[])if(ACTIVE.has(w.status)||w.status==='queued'||w.status==='suspending'){w.status='interrupted';w.waitReason={kind:'recovery',message:'服务重启，需明确检查后重试；未自动重放外部操作'};}if(ensureRoster(m,role=>this.makeAgent(m,{role,task:'',status:'idle'})))rosterChanged=true;}if(rosterChanged)this.save();
+    // Edge0 运行环境已移除：历史会话里选过它的成员回到岗位默认运行环境，并清掉
+    // 指向该服务的线程引用，避免继续对话时连一个不存在的本机服务。
+    let retired=rosterChanged;
+    for(const m of this.missions)for(const a of m.agents){
+      if(a.provider!=='edge0')continue;
+      assignProfile(m,a,a.role);
+      a.error=null;a.summary='原有本机 Edge0 运行环境已移除，已回到岗位默认模型';
+      this.event(m,a,'本机 Edge0 运行环境已移除，该成员已切回岗位默认模型');
+      retired=true;
+    }
+    if(retired)this.save();
     bridge.on('notification',msg=>this.notification(msg));
     bridge.on('request',msg=>{this.handleRequest(msg).catch(error=>{try{bridge.respond(msg.id,{success:false,contentItems:[{type:'inputText',text:error.message}]});}catch{}});});
     bridge.on('disconnected',message=>{this.loaded.clear();this.connection={...this.connection,connected:false,message};for(const m of this.missions){if(!TERMINAL.has(m.status)){m.status='interrupted';for(const a of m.agents){if(ACTIVE.has(a.status)||a.status==='queued'){a.status='interrupted';a.turnId=null;setWorkStatus(m,a,'interrupted');}}for(const r of m.requests)if(r.status==='pending')r.status='expired';this.teamChanged(m);}}this.requests.clear();this.touch();this.emit('member-finished');});

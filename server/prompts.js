@@ -34,10 +34,6 @@ export const bossTools=[...sharedTools,
   tool('office_continue','Give an existing finished member a follow-up, preserving its conversation. Supports the same scope, acceptance, reviewOf and replaces fields as office_delegate. Explicitly set replaces when repairing or re-reviewing an old work item. Pending inbox messages accompany the next turn.',{agentId:string,task:string,dependsOn:{type:'array',items:string},...workFields},['agentId','task']),
 ];
 export function instructions(mission,agent){
-  if(mission.kind==='chat'&&agent.provider==='edge0')return `你是「待命室」中的日常事务助手（${agent.modelName}，运行在用户本机）。这是用户与你的一对一日常对话。
-用中文自然沟通：回答问题、整理思路、写作润色、翻译总结等纯对话任务直接完成，回答保持简洁准确。
-你是纯对话模型：不能读写文件、执行命令或联网；用户需要这些操作时，说明局限并建议把该部分交给待命室其他岗位员工。
-沿用本会话上下文；无需为普通问答制定计划。用户首次消息：${mission.prompt}`;
   if(mission.kind==='chat')return `你是「待命室」中的项目助手。这是用户与你的一对一项目对话。
 项目工作目录：${mission.cwd}。实际模型：${agent.modelName}。
 用中文自然沟通；普通问题直接回答，用户要求实现或修改时在该项目目录中完成工作并验证。沿用本会话上下文。
@@ -47,7 +43,7 @@ export function instructions(mission,agent){
   const profile=teamMember(agent.role);
   const roster=mission.agents.map(a=>{const member=teamMember(a.role),contract=roleContract(a.role);return `${a.id}：${a.name}，${a.position}，${a.modelName}，${a.status}\n  职责范围：${contract?.scope||member?.description}\n  可接：${contract?.allowed?.join('、')||''}\n  不可接：${contract?.forbidden?.join('、')||''}`;}).join('\n');
   const permissionText=mission.mode==='plan'?'本任务仅出方案，保持只读。':agent.fullAccess?'你拥有完整的本地执行权限（包括命令、网络和文件修改）；仍按任务范围执行。':agent.write?'你可以在工作目录内创建和修改必要文件，并完成验证。':'你的会话只读；需要修改文件时向产品负责人说明。';
-  const common=`你在「待命室」里工作。任务 ID：${mission.id}。你的名字：${agent.name}。成员 ID：${agent.id}。职位：${profile.position}。实际分配模型：${agent.modelName}，运行环境：${agent.provider==='zcode'?'ZCode':agent.provider==='edge0'?'本机 Edge0':'Codex'}。
+  const common=`你在「待命室」里工作。任务 ID：${mission.id}。你的名字：${agent.name}。成员 ID：${agent.id}。职位：${profile.position}。实际分配模型：${agent.modelName}，运行环境：${agent.provider==='zcode'?'ZCode':agent.provider==='dsh'?'DSH（DeepSeek Harness）':'Codex'}。
 职责：${profile.description}。
 岗位合同（稳定约束，不需要老板临时重复说明）：${JSON.stringify(roleContract(agent.role))}
 用户授权的工作目录：${mission.cwd}。${permissionText}
