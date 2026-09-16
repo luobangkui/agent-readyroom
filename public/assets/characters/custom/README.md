@@ -24,7 +24,7 @@
 
 重建：`node scripts/import-hiruzen-model.mjs`，同步 `src/assets/custom-cast.js` 中的 modelRevision / motionRevision 后运行 `npm run build`。验证：`node --test test/hiruzen-import.test.js`；浏览器证据及删除记录见 本地验收记录（未随公开快照发布）。
 
-验证：`npm test`，`npm run build`。浏览器证据（四视角、办公替换与持久化截图）保留在本地验收记录中；`test/office-avatar-selection.test.js` 覆盖真实资产、快速替换竞态、活动保持、骨骼隔离和接触范围。
+验证：`npm test`，`npm run build`。本地验收记录（未随公开快照发布） 保存四视角、办公替换与持久化等浏览器证据；`test/office-avatar-selection.test.js` 覆盖真实资产、快速替换竞态、活动保持、骨骼隔离和接触范围。
 
 ## 鸣人 mingren 导入版（2026-09-14）
 
@@ -38,7 +38,7 @@
 
 `gangshouglf.zip` → `assets/imports/tsunade-20260914/base_basic_pbr.glb` → `scripts/import-tsunade-model.mjs`。保留完整 36,392 三角面和三张原始内嵌 PNG，添加 18 关节办公骨架，站高约 2.23，运行时缩放 1。模型源文件没有骨骼或动画。以肩、肘、腕骨骼和接缝平滑权重适配宽袖；工作时双手交替敲击键盘，保留原手型，没有独立手指关节动画。办公动作保留独立 UUID，支持入座、打字、收手、起身的正确切换。
 
-旧模型、独立面部贴图与旧专属生成器已清理；不要使用旧办公动作生成器覆盖导入版。构建输出 modelRevision / motionRevision 需同步到 `src/assets/custom-cast.js`。验证：`node --test test/tsunade-import.test.js`；浏览器截图保留在本地验收记录中。
+旧模型、独立面部贴图与旧专属生成器已清理；不要使用旧办公动作生成器覆盖导入版。构建输出 modelRevision / motionRevision 需同步到 `src/assets/custom-cast.js`。验证：`node --test test/tsunade-import.test.js`；浏览器截图见 本地验收记录（未随公开快照发布）。
 
 ## 小樱 PBR 导入版（2026-09-14）
 
@@ -46,16 +46,16 @@
 
 保留原握拳造型，工作状态为手腕交替动作，不包含独立手指动画。脚踏前移 `.05`，鞋底位于 `.23` 高度。旧自建贴图与专属生成器已清理；构建输出的 modelRevision / motionRevision 要同步至 `src/assets/custom-cast.js`。
 
-验证：`node --test test/office-avatar-selection.test.js`，检查几何与贴图保真、动作、切换以及手脚接触。浏览器截图保留在本地验收记录中。
+验证：`node --test test/office-avatar-selection.test.js`，检查几何与贴图保真、动作、切换以及手脚接触。浏览器截图见 本地验收记录（未随公开快照发布）。
 
 ### 小樱打字动作复用（2026-09-14）
 
-小樱与纲手共用 `scripts/office-typing.mjs` 的左右交替敲击节奏和办公片段 UUID 生成。小樱保留已有的 18 关节骨架，双手朝下，以手腕驱动约 `.027` 的抬落幅度，并按原蒙皮手部顶点校准键盘接触。独立 UUID 修复了状态已切到打字、实际仍播放坐姿的问题；坐姿、打字、收手起身、行走可以正常切换。原网格与 PBR 贴图保留。测试覆盖坐姿进入打字、双手交替、脚部稳定和往返行走，浏览器证据保留在本地验收记录中（未随公开快照发布）。
+小樱与纲手共用 `scripts/office-typing.mjs` 的左右交替敲击节奏和办公片段 UUID 生成。小樱保留已有的 18 关节骨架，双手朝下，以手腕驱动约 `.027` 的抬落幅度，并按原蒙皮手部顶点校准键盘接触。独立 UUID 修复了状态已切到打字、实际仍播放坐姿的问题；坐姿、打字、收手起身、行走可以正常切换。原网格与 PBR 贴图保留。测试覆盖坐姿进入打字、双手交替、脚部稳定和往返行走，浏览器证据在 本地验收记录（未随公开快照发布）。
 
 ## 水影自带骨骼动画版（2026-09-16）
 
 `anime+character+3d+model.glb` 直接替换为 `mizukage_chibi_custom.glb`。模型由 Tripo 导出，包含 987,634 个顶点、1,880,236 个三角面、41 个骨骼和三张内嵌 PBR 贴图；原生动画为 `preset:biped:walk`、`preset:biped:sit`、`preset:biped:agree`。
 
-待命室运行时将模型缩放到 3，以坐姿在等距待命室里的可见体量对齐现有 Q 版角色；水影专属椅子纵向放大到 1.55，模型向椅背移动 `.67`，使髋部落在椅面而不是悬在桌前。行走片段的前进根位移会转成原地步态，交由场景寻路控制实际位移。坐姿直接使用模型自带片段；交流、倾听和任务完成反馈使用同意动作。模型没有映射敲键盘动作，工作状态保持坐姿。旧水影源 GLB 和外置办公动作 JSON 已删除。
+待命室运行时将模型缩放到 3，以坐姿在等距待命室里的可见体量对齐现有 Q 版角色；水影专属椅子纵向放大到 1.55，模型向椅背移动 `.67`，使髋部落在椅面而不是悬在桌前。行走片段的前进根位移会转成原地步态，场景按原动画步幅以 `1.52 u/s` 控制实际位移；入座与离椅分别用坐姿和同意片段生成 `.75 s` 过渡，过渡完成前不会平移。坐姿直接使用模型自带片段；交流、倾听和任务完成反馈使用同意动作。模型没有映射敲键盘动作，工作状态保持坐姿。旧水影源 GLB 和外置办公动作 JSON 已删除。
 
 替换模型时同步 `src/assets/custom-cast.js` 的 `modelRevision` 和 `public/assets/characters/custom/mizukage-custom-manifest.json`。验证：`node --test test/mizukage-import.test.js`；预览 `/naruto-preview.html?character=mizukage`。

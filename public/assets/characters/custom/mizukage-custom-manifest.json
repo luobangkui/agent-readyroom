@@ -16,6 +16,8 @@
     "officeScale": 3,
     "seatOffsetZ": -0.67,
     "chairScaleY": 1.55,
+    "walkSpeed": 1.52,
+    "transitionDuration": 0.75,
     "textures": 3,
     "extraction": "Unmodified user-supplied GLB with embedded skin, PBR textures and animations",
     "motionLimit": "Typing is intentionally not mapped; working uses the seated clip."

@@ -89,11 +89,10 @@ try{
   const batches=(svg.match(/第 \d+ 批 · \d+ 项可并行/g)||[]).slice(0,4);
   console.log(`DAG 视图：${batches.join(' | ')}`);
   assert.match(svg,/拆分 2/,'父工作单标出拆分数量');
-  // 预览写到本地数据目录（.office-data 已在 .gitignore 内），不往仓库里丢生成物。
-  const preview=new URL('../.office-data/preview/',import.meta.url);
-  mkdirSync(preview,{recursive:true});
-  writeFileSync(new URL('collaboration-graph.html',preview),`<!doctype html><meta charset="utf-8"><title>协作任务图预览</title><link rel="stylesheet" href="../../src/style.css"><body style="padding:24px;background:#f5f4ee">${svg}</body>`);
-  console.log('协作图自检通过，DAG 预览：.office-data/preview/collaboration-graph.html');
+  const evidence=new URL('../evidence/collaboration-graph/',import.meta.url);
+  mkdirSync(evidence,{recursive:true});
+  writeFileSync(new URL('dag-preview.html',evidence),`<!doctype html><meta charset="utf-8"><title>协作任务图预览</title><link rel="stylesheet" href="../../src/style.css"><body style="padding:24px;background:#f5f4ee">${svg}</body>`);
+  console.log(`协作图自检通过，DAG 预览：evidence/collaboration-graph/dag-preview.html`);
 }catch(error){
   failed=true;
   console.error(`协作图自检失败：${error.message}`);

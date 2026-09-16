@@ -14,13 +14,13 @@
 
 **行走接地与步态（2026-09-15 两轮修复）**：此角色髋 `.732`、踝 `.124`、腿长仅 `.611`，静止姿势就是直腿，因此用 IK 够地面必然被截断——上一版就是这样出现脚浮空、穿地（最深 `-0.28`）和"走起来很怪"。现在改为直接驱动腿部：鞋底水平贴地前后摆动、摆动相抬脚、髋部承担起伏与重心转移，站立 68% / 摆动 32%，两脚相差半周期，保证任一帧至少一只脚着地；`reach()` 改为迭代 4 次（父骨转动后重新测量，踝误差从 `.18` 降到 `0`）；靴底接触点改为在旋转后的坐标系里取最低点（此前算错最多 `.19`）。髋部高度曲线用位移法求解：导出后用发布的蒙皮量每帧最低鞋底，把残差加回曲线重建片段，迭代到每帧最低鞋底落在 `.23`（收敛 `< .002`）。实测：鞋底最低 `.2291/.2290`（地面 `.23`），穿地 `< 1 mm`，抬脚 `.086/.088`，无双脚离地帧。速度取实测承载位移 `.45 u/s` 写进 `meta.walkSpeed`，`scene-director.js` 按模型自带速度平移。可用 `WALK_*` 环境变量覆盖调参，`scripts/walk-measure.mjs` 报告上述指标。
 
-重建：先重跑分类脚本再运行导入脚本，同步 `src/assets/custom-cast.js` 的两个 revision 并 `npm run build`。验证：`test/mizukage-import.test.js`；浏览器证据保留在本地验收记录中（未随公开快照发布）。
+重建：先重跑分类脚本再运行导入脚本，同步 `src/assets/custom-cast.js` 的两个 revision 并 `npm run build`。验证：`test/mizukage-import.test.js`；浏览器证据在 本地验收记录（未随公开快照发布）。
 
 ## 2026-09-14：鸣人替换为 mingren 新模型
 
 来源：`~/Downloads/mingren.zip` 的 `base_basic_pbr.glb`，原始 PBR/shaded 版本保存在 `assets/imports/naruto-mingren-20260914/`。保留原始 21,081 个顶点、UV、法线及三张内嵌 PNG；只分离手与腿侧包粘连的 64 个面，并添加 68 个封口面，避免抬手拉出三角片。最终 37,496 三角面，主网格与修补网格共用原 PBR 材质。
 
-与小樱、纲手共用 `scripts/office-typing.mjs` 的敲击节奏和动作 UUID、`smooth-imported-arm-weights.mjs` 的接缝权重平滑，以及既有 `RiggedMotion`/工位接触流程。新增 18 关节和 6 个基础动作、4 个办公片段，运行时缩放 1；手部交替敲击，脚底保持 `.23`，腿侧包跟随大腿。旧自建 GLB 已覆盖，旧面部贴图和旧专属生成器已删除，清单保留在本地验收记录中（未随公开快照发布）。
+与小樱、纲手共用 `scripts/office-typing.mjs` 的敲击节奏和动作 UUID、`smooth-imported-arm-weights.mjs` 的接缝权重平滑，以及既有 `RiggedMotion`/工位接触流程。新增 18 关节和 6 个基础动作、4 个办公片段，运行时缩放 1；手部交替敲击，脚底保持 `.23`，腿侧包跟随大腿。旧自建 GLB 已覆盖，旧面部贴图和旧专属生成器已删除，清单见 本地验收记录（未随公开快照发布）。
 
 重建：输入变化后先 `python scripts/classify-naruto-hand.py` 生成按源文件哈希校验的手部分区，再 `node scripts/import-naruto-model.mjs`；同步 catalog 的两个 revision 并 `npm run build`。验证：`test/custom-naruto.test.js` 与 本地验收记录（未随公开快照发布）。
 
@@ -30,7 +30,7 @@
 
 `node scripts/import-hiruzen-model.mjs` 添加 18 关节蒙皮和待机、行走、坐下、坐姿、起身、打字动作。手腕驱动双手交替抬落，按真实手部顶点校准键盘；沿用共用的打字节奏和独立动作 UUID。坐姿针对新模型的短躯干调整椅子高度，脚底保持在 `.23` 高脚踏。运行时缩放为 1，模型站高约 2.24。
 
-旧版发布资产已覆盖；旧三代目 GLB、Blender 文件、旧面部贴图、旧导入源和专属旧生成脚本直接删除，不留旧模型备份。删除清单保留在本地验收记录中（未随公开快照发布）。来源与版本见 `public/assets/characters/custom/hiruzen-custom-manifest.json`；测试为 `test/hiruzen-import.test.js`，浏览器证据保留在本地验收记录中（未随公开快照发布）。重建后同步 catalog 的两个 revision，并运行 `npm run build`。
+旧版发布资产已覆盖；旧三代目 GLB、Blender 文件、旧面部贴图、旧导入源和专属旧生成脚本直接删除，不留旧模型备份。删除清单见 本地验收记录（未随公开快照发布）。来源与版本见 `public/assets/characters/custom/hiruzen-custom-manifest.json`；测试为 `test/hiruzen-import.test.js`，浏览器证据在 本地验收记录（未随公开快照发布）。重建后同步 catalog 的两个 revision，并运行 `npm run build`。
 
 ## 2026-09-10：木叶人物选择与旧版清理
 
@@ -44,7 +44,7 @@
 
 新增肩、肘、腕绑定，按 UV 岛区分衣袖与衣身，并平滑接缝权重。工作时双手朝下交替敲击键盘，保留原手型，不包含独立手指关节动画；椅子与脚踏前移 `.20`，脚底保持与 `.23` 高脚踏接触。办公片段使用独立、稳定的 UUID，避免状态切换时复用错误动作。默认老板与已保存的 `tsunade-custom` 身份直接加载新模型，并更新内容哈希避免缓存旧版。
 
-旧发布 GLB、动作和 manifest 已被替换；旧面部贴图、Blender/Three.js 源模型、专属旧生成脚本和对比截图已删除。旧纲手对比链接转到当前预览。历史测试证据保留在本地验收记录中，不随页面发布。
+旧发布 GLB、动作和 manifest 已被替换；旧面部贴图、Blender/Three.js 源模型、专属旧生成脚本和对比截图已删除。旧纲手对比链接转到当前预览。历史测试证据仅留在 本地验收记录（未随公开快照发布），不随页面发布。
 
 重建：`node scripts/import-tsunade-model.mjs`，随后更新 `src/assets/custom-cast.js` 的两个 revision 并运行 `npm run build`。来源及校验值见 `public/assets/characters/custom/tsunade-custom-manifest.json`；几何、贴图、脚底、循环和状态切换验证见 `test/tsunade-import.test.js`。
 
@@ -54,7 +54,7 @@
 
 补齐模型及办公动作的缓存版本，使已保存的 `sakura-custom` 选择直接显示新外观。手部保持原始握拳造型，以手腕交替动作表现工作，不包含独立手指动画。脚踏前移 `.05`，鞋底稳定落在 `.23` 高脚踏内；手部在键盘区域交替抬落。旧自建面部贴图、专属生成脚本和旧对比截图已清理，旧对比链接改为跳转当前预览。
 
-重建：`node scripts/import-sakura-model.mjs`，将清单中的 modelRevision / motionRevision 同步至 `src/assets/custom-cast.js`，再运行 `npm run build`。`test/office-avatar-selection.test.js` 验证完整源几何与贴图、18 关节权重、10 个动作、模型切换、脚踏与手部接触。浏览器证据保留在本地验收记录中（未随公开快照发布）。
+重建：`node scripts/import-sakura-model.mjs`，将清单中的 modelRevision / motionRevision 同步至 `src/assets/custom-cast.js`，再运行 `npm run build`。`test/office-avatar-selection.test.js` 验证完整源几何与贴图、18 关节权重、10 个动作、模型切换、脚踏与手部接触。浏览器证据见 本地验收记录（未随公开快照发布）。
 
 ## 当前使用：自建木叶人物与 Styloo 可选外观
 
@@ -135,4 +135,4 @@
 
 ### 小樱打字动作复用（2026-09-14）
 
-小樱与纲手共用 `scripts/office-typing.mjs` 的左右交替敲击节奏和办公片段 UUID 生成。小樱保留已有的 18 关节骨架，双手朝下，以手腕驱动约 `.027` 的抬落幅度，并按原蒙皮手部顶点校准键盘接触。独立 UUID 修复了状态已切到打字、实际仍播放坐姿的问题；坐姿、打字、收手起身、行走可以正常切换。原网格与 PBR 贴图保留。测试覆盖坐姿进入打字、双手交替、脚部稳定和往返行走，浏览器证据保留在本地验收记录中（未随公开快照发布）。
+小樱与纲手共用 `scripts/office-typing.mjs` 的左右交替敲击节奏和办公片段 UUID 生成。小樱保留已有的 18 关节骨架，双手朝下，以手腕驱动约 `.027` 的抬落幅度，并按原蒙皮手部顶点校准键盘接触。独立 UUID 修复了状态已切到打字、实际仍播放坐姿的问题；坐姿、打字、收手起身、行走可以正常切换。原网格与 PBR 贴图保留。测试覆盖坐姿进入打字、双手交替、脚部稳定和往返行走，浏览器证据在 本地验收记录（未随公开快照发布）。

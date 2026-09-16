@@ -138,7 +138,7 @@ node scripts/preview-harness.mjs             # 只读夹具：用真实调度器
 ## 许可
 
 - **代码**：[MIT](LICENSE)。`server/`、`src/`、`scripts/`、`test/` 与文档可以自由使用、修改、分发。
-- **第三方素材不在 MIT 范围内**：`public/assets/`（含 `characters/custom/` 下的 Q 版角色模型与场景素材）属于第三方角色模型、贴图与概念图，来源、许可证与转换过程记录在 [ASSET-SOURCES.md](ASSET-SOURCES.md)，请按该文件说明当作本地学习用途对待，不要随代码一起再分发。公开快照不含原始导入文件（`assets/imports/`）与内部验收记录（`evidence/`）。
+- **第三方素材不在 MIT 范围内**：`public/assets/`（含 `characters/custom/` 下的 Q 版角色模型）属于第三方角色模型、贴图与概念图，来源、许可证与转换过程记录在 [ASSET-SOURCES.md](ASSET-SOURCES.md)，请按该文件说明当作本地学习用途对待，不要随代码一起再分发。
 - 其余依赖（Three.js、marked、DOMPurify、Vite、`@openai/codex`）遵循各自上游许可证。
 
 ## 已知限制
@@ -147,3 +147,4 @@ node scripts/preview-harness.mjs             # 只读夹具：用真实调度器
 - 范围与证据依赖成员如实声明和实际检查，不能当成沙箱或质量的数学保证。
 - Codex 动态工具协议仍是实验性接口，升级运行环境后需要重跑集成检查。
 - DSH 走 ACP：只上报已提交消息与工具生命周期，没有逐字增量，也不支持中途 steer。
+公开快照不含原始导入文件（`assets/imports/`）与内部验收记录（`evidence/`）。

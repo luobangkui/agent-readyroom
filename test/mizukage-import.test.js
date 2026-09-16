@@ -11,6 +11,8 @@ import {createCharacter} from '../src/themes/character.js';
 import {getTheme} from '../src/themes/index.js';
 import {primitives} from '../src/office.js';
 import {DESK_ERGONOMICS as D} from '../src/desk-ergonomics.js';
+import {SceneDirector} from '../src/scene-director.js';
+import {WORKSTATIONS,LEISURE} from '../src/room-layout.js';
 
 const root=new URL('../public/',import.meta.url);
 const item=officeAvatar('mizukage-custom');
@@ -38,9 +40,9 @@ const step=(motion,seconds)=>{for(let i=0;i<Math.ceil(seconds*60);i++)motion.upd
   assert.ok(forward.every(value=>value===forward[0]),'walk root translation must be removed before office pathing');
   const model=createRiggedModel(gltf);
   try{
-   assert.ok(model.motion.request('sitting'));step(model.motion,1.5);assert.equal(model.motion.state,'sitting');
+   assert.ok(model.motion.request('sitting'));step(model.motion,.9);assert.equal(model.motion.state,'sitting');
    assert.equal(model.motion.request('typing'),false);
-   assert.ok(model.motion.request('agree'));step(model.motion,.3);assert.equal(model.motion.state,'agree');
+   assert.ok(model.motion.request('agree'));step(model.motion,.9);assert.equal(model.motion.state,'agree');
    assert.ok(model.motion.request('walking'));step(model.motion,.3);assert.equal(model.motion.state,'walking');assert.equal(model.motion.canMove,true);
   }finally{model.dispose();}
  });
@@ -57,4 +59,33 @@ test('Mizukage seated hips make contact with the office chair instead of floatin
   }
   const maxY=Math.max(...contact.map(hip=>Math.abs(hip.hipY-seatTop))),maxZ=Math.max(...contact.map(hip=>Math.abs(hip.hipZ-chairCenterZ)));
   assert.ok(maxY<.08&&maxZ<.28,`Mizukage misses the chair: ${JSON.stringify({maxY,maxZ,seatTop,chairCenterZ})}`);
+});
+
+test('Mizukage office movement keeps the authored walking pace',async()=>{
+  const source=await loader(item.url),walk=source.animations.find(clip=>clip.name==='preset:biped:walk');
+  const hip=walk.tracks.find(track=>track.name==='Hip.position'),stride=hip.getValueSize();
+  const distance=Math.abs(hip.values.at(-stride+1)-hip.values[1])*item.officeMeta.scale;
+  const duration=hip.times.at(-1)-hip.times[0],authoredSpeed=distance/duration;
+  assert.ok(Math.abs(item.officeMeta.walkSpeed-authoredSpeed)/authoredSpeed<.08,`walk speed ${item.officeMeta.walkSpeed} does not match authored ${authoredSpeed}`);
+});
+
+test('Mizukage leaves the chair before translating across the office',async()=>{
+  const gltf=await loadOfficeModel(item,{loader}),model=createRiggedModel(gltf);
+  try{
+    model.motion.request('sitting');step(model.motion,.9);model.motion.request('walking');model.motion.update(1/60);
+    assert.equal(model.motion.canMove,false,'Mizukage starts translating while still blended with the seated pose');
+    step(model.motion,.8);assert.equal(model.motion.canMove,true,'Mizukage never starts walking after clearing the chair');
+  }finally{model.dispose();}
+});
+
+test('Mizukage follows an office route with a visible walk after the stand-up transition',async t=>{
+  const station=WORKSTATIONS[0],actor=createCharacter(new THREE.Group(),'boss',station.home.x,station.home.z,primitives,getTheme('konoha'),{loader});t.after(()=>actor.disposeAppearance());
+  actor.hasSeat=actor.wantsSeat=true;actor.homeRotation=actor.targetRotation=actor.root.rotation.y=station.facing;actor.mode='idle';actor.setAvatar('mizukage-custom');await actor.modelReady;
+  for(let i=0;i<60;i++)actor.updateAssetPose(1/60);
+  const director=new SceneDirector({actors:{boss:actor}}),mission={id:'mizukage-walk',status:'running',agents:[{id:'mizukage',role:'boss',status:'running'}],messages:[],events:[],requests:[]};
+  director.sync(mission,new Map([['boss','mizukage']]));const record=director.record('mizukage'),start=actor.root.position.clone();
+  director.setDestination(record,LEISURE.coffee);assert.ok(record.route.length,'expected a real route to the coffee area');
+  for(let frame=0;frame<40;frame++){director.update(1/60);actor.updateAssetPose(1/60);assert.ok(actor.root.position.distanceTo(start)<1e-6,'actor moved before clearing the chair');}
+  for(let frame=0;frame<80;frame++){director.update(1/60);actor.updateAssetPose(1/60);}
+  assert.equal(actor.assetMotion.state,'walking');assert.ok(actor.root.position.distanceTo(start)>1.5,'actor did not make visible walking progress');
 });

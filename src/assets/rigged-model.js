@@ -28,6 +28,7 @@ export function createRiggedModel(gltf){
   });
   const motion=new RiggedMotion(root,gltf.animations,gltf.officeClipNames);
   motion.seatedLife=!!gltf.officeMeta?.seatedLife;
+  motion.transitionDuration=gltf.officeMeta?.transitionDuration??0;
   return {root,motion,dispose(){motion.dispose();root.removeFromParent();}};
 }
 
@@ -51,10 +52,11 @@ export class RiggedMotion {
   }
   play(state,fade=.18){
     const clip=this.clips.get(this.names[state]);if(!clip)return false;
-    const previous=this.action,next=this.mixer.clipAction(clip);
-    next.reset().setEffectiveTimeScale(state==='typing'?(this.typingRate??1):['idle','sitting'].includes(state)?.65:1).setEffectiveWeight(1);
-    next.setLoop(['sitDown','standUp'].includes(state)?THREE.LoopOnce:THREE.LoopRepeat,Infinity);
-    next.clampWhenFinished=['sitDown','standUp'].includes(state);
+    const previous=this.action,next=this.mixer.clipAction(clip),transition=['sitDown','standUp'].includes(state);
+    const timeScale=transition&&this.transitionDuration?clip.duration/this.transitionDuration:state==='typing'?(this.typingRate??1):['idle','sitting'].includes(state)?.65:1;
+    next.reset().setEffectiveTimeScale(timeScale).setEffectiveWeight(1);
+    next.setLoop(transition?THREE.LoopOnce:THREE.LoopRepeat,Infinity);
+    next.clampWhenFinished=transition;
     if(state==='typing'||state==='sitting'&&this.seatedLife)next.time=(this.phaseOffset??0)*clip.duration;
     next.play();if(previous&&previous!==next)next.crossFadeFrom(previous,fade,false);
     this.action=next;this.state=state;return true;

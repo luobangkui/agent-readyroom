@@ -85,6 +85,25 @@ test('replaced and legacy work items stay out of the drawn graph without breakin
   assert.match(svg,/关键路径 3 层/);
 });
 
+test('a long chain draws as rows instead of a sprawling strip, and long wait text never spills',()=>{
+  // 7 batches with at most two items each: the shape that looked broken before.
+  const works=Array.from({length:7},(_,i)=>work(`w${i}`,`batch-${i}`,{dependsOn:i?[`w${i-1}`]:[]}));
+  works[0].status='ready';
+  works[0].waitReason={kind:'scope',message:'等待 鸣人 的工作单 deploy-a 释放重叠路径 · 重叠路径：.scratch/delivery-e2e-20260916；同一个目录无法判断内部是否真的冲突——需要并行就声明到文件级，需要排队就用 resources 表达容量'};
+  works[3].status='running';works[3].agentId='agent-1';
+  const svg=collaborationGraph(mission(works),id=>id==='agent-1'?'夏禾':'');
+  const [,width,height]=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).map(Number);
+  assert.ok(height>width,`批次按行排列，画布应纵向生长：${width}x${height}`);
+  assert.match(svg,/<tspan class="dag-chip wait">等范围<\/tspan>/,'等待原因在节点里只占一个短标签');
+  const inline=[...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(match=>match[1]).join('');
+  assert.ok(!inline.includes('释放重叠路径'),'长等待原因不画进节点');
+  assert.ok(svg.includes('释放重叠路径'),'完整原因保留在悬停标题里');
+  assert.equal((svg.match(/NaN/g)||[]).length,0);
+  for(const [,x,y] of svg.matchAll(/transform="translate\(([\d.]+),([\d.]+)\)"/g))assert.ok(Number(x)>=0&&Number(x)<width&&Number(y)>=0&&Number(y)<height,`节点越出画布：${x},${y}`);
+  for(const [,text] of svg.matchAll(/<text class="dag-key"[^>]*>([^<]*)<\/text>/g))assert.ok(text.length<=18,`节点标题过长：${text}`);
+  assert.equal((svg.match(/<g class="dag-node /g)||[]).length,7);
+});
+
 test('the view reports hand-edited cyclic data instead of drawing a wrong order',()=>{
   const cyclic=mission([work('a','a',{dependsOn:['b']}),work('b','b',{dependsOn:['a']})]);
   const svg=collaborationGraph(cyclic);

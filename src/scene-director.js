@@ -65,7 +65,7 @@ export function exchangeFrom(message,mission){
   return null;
 }
 const activeMission=m=>['queued','running','stopping'].includes(m.status);
-export const AMBIENT_CADENCE={firstDelay:55,interval:120,stagger:18,cooldown:35,maxConcurrent:1};
+export const AMBIENT_CADENCE={firstDelay:12,interval:45,stagger:6,cooldown:10,maxConcurrent:1};
 const PASTIMES=[
   {mode:'gazing',spot:LEISURE.window,rotation:Math.PI,duration:12},
   {mode:'gazing',spot:LEISURE.reading,rotation:0,duration:10}
