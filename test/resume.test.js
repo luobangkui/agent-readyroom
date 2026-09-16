@@ -156,3 +156,43 @@ test('继续：模型失败（非环境问题）不会被静默复位',async t=>
   assert.equal(ops.status,'failed');
   assert.equal(review.status,'failed');
 });
+
+test('一键继续：retryFailed 会把失败与停止的工作单一起重试并复位对应成员',async t=>{
+  const f=await crashed(t);
+  const api=work(f.mission,'api'),leaf=work(f.mission,'leaf');
+  api.status='failed';api.report={summary:'旧报告',checks:[],verdict:'blocked'};
+  leaf.status='stopped';leaf.waitReason={kind:'stop',message:'用户已停止，未自动重试'};
+  const builder=f.mission.agents.find(agent=>agent.role==='builder');
+  builder.status='failed';builder.error='模型拒绝了这次调用：内容策略';builder.workId=leaf.id;
+  const result=await f.service.resume(f.mission.id,{retryFailed:true});
+  await tick();
+  assert.deepEqual(result.requeued.sort(),['api','leaf'],'失败与停止的工作单都重新排队');
+  assert.equal(result.retried.length,2,'结果里列出重试项');
+  assert.equal(result.needsPlanner.length,0,'都重试了就不需要再交给规划者');
+  assert.equal(api.retries,1,'重试次数+1');
+  assert.equal(api.report,null,'旧报告清掉，避免和本轮证据混淆');
+  assert.ok(result.revived.includes(builder.name),'它的成员一起复位');
+  assert.equal(builder.error,null);
+  assert.equal(['waiting_input','ready','running','queued'].includes(api.status),true,`工作单回到可调度：${api.status}`);
+});
+
+test('一键继续：默认不重试失败工作单（工具路径保持保守）',async t=>{
+  const f=await crashed(t);
+  const api=work(f.mission,'api');
+  api.status='failed';
+  const result=await f.service.resume(f.mission.id);
+  await tick();
+  assert.deepEqual(result.needsPlanner,['api'],'不带 retryFailed 时交给规划者');
+  assert.deepEqual(result.retried,[]);
+  assert.equal(api.retries||0,0,'没有静默重试');
+});
+
+test('一键继续：超时中断的工作单也会被重试，并在结果里单列',async t=>{
+  const f=await crashed(t);
+  const leaf=work(f.mission,'leaf');
+  leaf.status='interrupted';leaf.timeoutRequestedAt=new Date().toISOString();
+  const result=await f.service.resume(f.mission.id,{retryFailed:true});
+  await tick();
+  assert.deepEqual(result.requeued.sort(),['api','leaf'],'用户明确授权后超时工作单也重新排队');
+  assert.equal(leaf.timeoutRequestedAt,null,'清掉超时标记，避免立刻又被判超时');
+});

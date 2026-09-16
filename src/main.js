@@ -119,11 +119,11 @@ function render(){
   if(stalled){
     const parts=[];
     if(interruptedWorks.length)parts.push(`重新排队 ${interruptedWorks.length} 项被中断的工作单`);
-    if(failedWorks.length)parts.push(`${failedWorks.length} 项未成功的工作单交给规划者判断重试或重规划`);
+    if(failedWorks.length)parts.push(`重试 ${failedWorks.length} 项失败/停止的工作单`);
     const stalledMembers=(m.agents||[]).filter(a=>['failed','stopped','interrupted'].includes(a.status));
-    if(stalledMembers.length)parts.push(`复位 ${stalledMembers.map(a=>a.name).join('、')}`);
+    if(stalledMembers.length)parts.push(`复位成员 ${stalledMembers.map(a=>a.name).join('、')}`);
     $('#resume-title').textContent=m.status==='interrupted'?'这个目标被中断了':'有工作单或成员停在中断/失败状态';
-    $('#resume-detail').textContent=`点继续会${parts.join('，')}；不会重放需要确认副作用的操作，历史证据与已完成的成果都保留。${busy.length?`（${busy.map(a=>a.name).join('、')} 正在执行，需等这一轮结束）`:''}`;
+    $('#resume-detail').textContent=`一键继续会${parts.join('，')}，全部重新排队并交给调度器；历史证据与已完成成果保留。失败重试前请自行确认没有未完成的外部操作。${busy.length?`（${busy.map(a=>a.name).join('、')} 正在执行，需等这一轮结束）`:''}`;
     $('#resume-mission').disabled=busy.length>0;
     $('#resume-mission').title=busy.length?'还有成员在执行，等它本轮结束后再继续':'重新排队被中断的工作单并复位待命成员';
   }
@@ -378,10 +378,11 @@ $('#resume-mission').onclick=async()=>{
   const m=mission();if(!m)return;
   const button=$('#resume-mission');button.disabled=true;
   try{
-    const result=await api(`/missions/${m.id}/resume`,{});
+    const result=await api(`/missions/${m.id}/resume`,{retryFailed:true});
     const parts=[];
     if(result.requeued?.length)parts.push(`重新排队 ${result.requeued.length} 项`);
-    if(result.revived?.length)parts.push(`恢复 ${result.revived.length} 位成员`);
+    if(result.retried?.length)parts.push(`重试失败 ${result.retried.length} 项`);
+    if(result.revived?.length)parts.push(`复位 ${result.revived.length} 位成员`);
     if(result.needsPlanner?.length)parts.push(`${result.needsPlanner.length} 项交给规划者`);
     if(result.held?.length)parts.push(`${result.held.length} 项需要你先确认副作用`);
     toast(parts.length?`已继续：${parts.join('，')}。`:'没有需要继续的工作单。');

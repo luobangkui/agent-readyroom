@@ -52,7 +52,7 @@ const server=http.createServer(async(req,res)=>{
         json(res,201,{mission});return;
       }
       const route=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/(message|stop|answer|accept|archive|restore|resume)$/);
-      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):action==='resume'?await service.resume(id,{agentId:typeof data.agentId==='string'?data.agentId:''}):service.accept(id);json(res,200,{mission});return;}
+      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):action==='resume'?await service.resume(id,{agentId:typeof data.agentId==='string'?data.agentId:'',retryFailed:data.retryFailed===true}):service.accept(id);json(res,200,{mission});return;}
       json(res,404,{error:'接口不存在'});return;
     }
     if(vite){vite.middlewares(req,res);return;}

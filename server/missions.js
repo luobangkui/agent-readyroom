@@ -441,7 +441,7 @@ export class MissionService extends EventEmitter {
     agent.status='idle';agent.turnId=null;agent.error=null;agent.finishedAt=null;
     agent.summary=reason||'等待重新领取工作';
   }
-  async resume(id,{agentId=''}={}){
+  async resume(id,{agentId='',retryFailed=false}={}){
     const m=this.get(id);
     if(m.archivedAt)throw Object.assign(new Error('这条记录已归档，请先恢复再继续。'),{status:409});
     // 指定成员：只恢复这一位（界面里失败成员旁边的「重试」）
@@ -459,25 +459,40 @@ export class MissionService extends EventEmitter {
       this.event(m,agent,`用户手动恢复 ${agent.name}${requeued.length?`，重新排队 ${requeued.join('、')}`:'，清除了过期的失败状态'}`,'human');
       if(!this.save())throw Object.assign(new Error('恢复操作未保存，请重试。'),{status:500});
       this.teamChanged(m);this.schedule();
-      return {mission:m,requeued,revived:[agent.name],needsPlanner:[],held:[]};
+      return {mission:m,requeued,retried:requeued,revived:[agent.name],needsPlanner:[],held:[]};
     }
     if(m.agents.some(a=>ACTIVE.has(a.status)||a.status==='queued'))throw Object.assign(new Error('还有成员在执行或排队，等这一轮结束后再继续。'),{status:409});
-    const requeued=[],needsPlanner=[],held=[];
+    const requeued=[],needsPlanner=[],held=[],retried=[];
     for(const work of m.workItems||[]){
       if(work.replacedBy||work.protocol!==2)continue;
       const key=work.key||work.id;
-      if(work.status==='interrupted'){
-        if(work.timeoutRequestedAt||work.waitReason?.kind==='stop'){held.push(key);continue;}
-        transition(work,'waiting_input',{kind:'recovery',message:'用户请求继续：重新检查输入后就绪领取'});
+      // 超时中断或用过停止的现场可能有未完成的外部操作：默认只登记待确认，
+      // 用户点「继续推进」（retryFailed）时才连带重试。
+      const needsReview=!!work.timeoutRequestedAt||work.waitReason?.kind==='stop';
+      const interrupted=work.status==='interrupted',failedish=['failed','stopped'].includes(work.status);
+      if(interrupted&&needsReview&&!retryFailed){held.push(key);continue;}
+      const shouldRequeue=interrupted?(!needsReview||retryFailed):(failedish&&retryFailed);
+      if(shouldRequeue){
+        // 用户点「继续推进」= 明确授权重试：清掉中断/超时标记，失败的工作单按代次重来
+        // （保留历史记录但清空本代报告），重试次数照旧累计，便于回看是谁在反复重试。
+        work.timeoutRequestedAt=null;work.suspendRequested=null;
+        if(failedish){
+          work.retries=(work.retries||0)+1;work.report=null;
+          work.retryReason='用户点击继续推进';retried.push(`${key}（第 ${work.retries} 次）`);
+        }
+        transition(work,'waiting_input',{kind:'recovery',message:retryFailed?'用户请求继续：重新检查输入后就绪领取（含失败重试）':'用户请求继续：重新检查输入后就绪领取'});
         requeued.push(key);
-      }else if(['failed','stopped'].includes(work.status))needsPlanner.push(key);
+      }else if(interrupted||failedish)needsPlanner.push(key);
     }
     const revived=[];
     for(const agent of m.agents){
       const work=(m.workItems||[]).find(entry=>entry.id===agent.workId&&!entry.replacedBy);
-      const resumable=!!work&&!['failed','stopped','completed'].includes(work.status);
-      // interrupted = 重启/掉线打断；failed + 运行环境类错误 + 工作单还活着 = 环境问题，不是模型失败
-      const recoverable=agent.status==='interrupted'||(agent.status==='failed'&&resumable&&MissionService.runtimeFailure(agent.error));
+      const alive=!!work&&!['completed'].includes(work.status);
+      const requeuedWork=!!work&&requeued.includes(work.key||work.id);
+      // interrupted = 重启/掉线打断；failed/stopped = 只要它的工作单被重新排队（用户授权）
+      // 或错误是运行环境类（不是模型能力问题），就一起复位
+      const recoverable=agent.status==='interrupted'
+        ||(['failed','stopped'].includes(agent.status)&&(requeuedWork||(alive&&MissionService.runtimeFailure(agent.error))));
       if(!recoverable)continue;
       this.reviveAgent(m,agent);
       if(agent.workId&&!work)agent.workId=null;
@@ -493,10 +508,10 @@ export class MissionService extends EventEmitter {
     }
     if(m.status!=='completed'){m.status='running';m.finishedAt=null;}
     m.lastGraphBlocker=null;m.phase=requeued.length?'executing':m.phase;
-    this.event(m,null,`用户请求继续：重新排队 ${requeued.length} 项工作单${revived.length?`，恢复 ${revived.length} 位成员`:''}${needsPlanner.length?`，${needsPlanner.length} 项未成功工作单交给规划者`:''}${held.length?`；${held.join('、')} 需要你确认副作用后再重试`:''}`,'human');
+    this.event(m,null,`用户请求继续：重新排队 ${requeued.length} 项工作单${retried.length?`（含失败重试：${retried.join('、')}）`:''}${revived.length?`，恢复 ${revived.length} 位成员`:''}${needsPlanner.length?`，${needsPlanner.length} 项未成功工作单交给规划者`:''}${held.length?`；${held.join('、')} 需要你确认副作用后再重试`:''}`,'human');
     if(!this.save())throw Object.assign(new Error('继续操作未保存，请重试。'),{status:500});
     this.teamChanged(m);this.schedule();
-    return {mission:m,requeued,revived,needsPlanner,held};
+    return {mission:m,requeued,retried,revived,needsPlanner,held};
   }
   async stop(id){
     const m=this.get(id);m.status='stopping';this.touch(m);
