@@ -8,7 +8,8 @@ const run=promisify(execFile);
 const script=fileURLToPath(new URL('../scripts/restart-service.mjs',import.meta.url));
 
 const fixture=async(t,missions)=>{const server=http.createServer((request,response)=>{response.setHeader('Content-Type','application/json');response.end(JSON.stringify({connection:{providers:{codex:{connected:true,authenticated:true}}},missions}));});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close());return server.address().port;};
-const call=async(port,extra={})=>run(process.execPath,[script],{env:{...process.env,OFFICE_PORT:String(port),OFFICE_RUNTIMES:'codex',OFFICE_RESTART_READY_TIMEOUT_MS:'1500',...extra}}).then(result=>({...result,code:0}),error=>({stdout:error.stdout||'',stderr:error.stderr||'',code:error.code}));
+// 关键：label 指向不存在的服务，测试绝不能把真实待命室服务 kill 掉
+const call=async(port,extra={})=>run(process.execPath,[script],{env:{...process.env,OFFICE_PORT:String(port),OFFICE_RUNTIMES:'codex',OFFICE_RESTART_READY_TIMEOUT_MS:'1500',OFFICE_LAUNCHD_LABEL:'local.readyroom-does-not-exist',...extra}}).then(result=>({...result,code:0}),error=>({stdout:error.stdout||'',stderr:error.stderr||'',code:error.code}));
 
 test('the restart helper refuses to interrupt a running mission',async t=>{
   const port=await fixture(t,[{title:'正在跑的目标',status:'running',agents:[{name:'鸣人',status:'running',summary:'正在实现接口'}]}]);
@@ -49,4 +50,11 @@ test('the restart helper waits for every runtime and warns about the ones still 
   assert.equal(result.code,1,'有运行环境没就绪时以失败退出，便于脚本发现');
   assert.match(result.stdout,/zcode 在 2 秒内没有就绪|zcode 在 1 秒内没有就绪/);
   assert.match(result.stdout,/重建本地连接/);
+});
+
+test('the restart helper never signals the real service label during tests',async t=>{
+  const port=await fixture(t,[]);
+  const result=await call(port);
+  assert.match(result.stdout,/launchctl kill 未成功/,'测试里用的是不存在的 label');
+  assert.ok(!/tech\.dp\.readyroom|local\.readyroom$/m.test(result.stdout));
 });

@@ -56,10 +56,9 @@ if(snapshot&&!force){
   }
 }
 await run('launchctl',['kill','SIGTERM',`gui/${process.getuid()}/${label}`]).catch(error=>{
-  // 服务刚好处于"已退出、尚在拉起"的窗口时没有进程可发信号，这不是失败：
-  // 下面的就绪轮询会继续等它起来。
-  if(/No process to signal/i.test(String(error.stderr||error.message)))console.log('服务当前没有在跑的进程，直接等它拉起。');
-  else throw new Error(`launchctl 重启失败：${error.message}`);
+  // 发信号失败不当作重启失败：服务可能正好处于"已退出、尚在拉起"的窗口，
+  // 或者 label 写错。真正的判据是下面的就绪轮询——起不来就会以失败退出。
+  console.log(`launchctl kill 未成功（${String(error.stderr||error.message).trim().slice(0,120)}），继续等它就绪。`);
 });
 // Wait for the runtime bridges to settle: an immediately-answering service can
 // still be in the middle of connecting Codex/ZCode/DSH.
