@@ -111,14 +111,21 @@ function render(){
   // 中断可恢复：明确告诉用户现在能一键继续，以及继续会发生什么。
   const interruptedWorks=(m?.workItems||[]).filter(work=>work.protocol===2&&!work.replacedBy&&work.status==='interrupted');
   const failedWorks=(m?.workItems||[]).filter(work=>work.protocol===2&&!work.replacedBy&&['failed','stopped'].includes(work.status));
-  const stalled=!!m&&!m.archivedAt&&m.kind!=='chat'&&(m.status==='interrupted'||interruptedWorks.length>0)&&!(m.agents||[]).some(a=>['running','queued','starting','waiting'].includes(a.status));
+  const stalledWorks=interruptedWorks.length+failedWorks.length;
+  const recovering=!!m&&['failed','stopped','interrupted'].includes(m.status)&&m.kind!=='chat';
+  const stalled=!!m&&!m.archivedAt&&m.kind!=='chat'&&(m.status==='interrupted'||stalledWorks>0)&&(stalledWorks>0||!(m.agents||[]).some(a=>['running','queued','starting','waiting'].includes(a.status))||recovering);
+  const busy=(m?.agents||[]).filter(a=>['running','queued','starting','waiting'].includes(a.status));
   $('#resume-banner').hidden=!stalled;
   if(stalled){
     const parts=[];
     if(interruptedWorks.length)parts.push(`重新排队 ${interruptedWorks.length} 项被中断的工作单`);
     if(failedWorks.length)parts.push(`${failedWorks.length} 项未成功的工作单交给规划者判断重试或重规划`);
-    $('#resume-title').textContent=m.status==='interrupted'?'这个目标被中断了':'有工作单停在中断状态';
-    $('#resume-detail').textContent=`点继续会${parts.join('，')}；不会重放需要确认副作用的操作，历史证据与已完成的成果都保留。`;
+    const stalledMembers=(m.agents||[]).filter(a=>['failed','stopped','interrupted'].includes(a.status));
+    if(stalledMembers.length)parts.push(`复位 ${stalledMembers.map(a=>a.name).join('、')}`);
+    $('#resume-title').textContent=m.status==='interrupted'?'这个目标被中断了':'有工作单或成员停在中断/失败状态';
+    $('#resume-detail').textContent=`点继续会${parts.join('，')}；不会重放需要确认副作用的操作，历史证据与已完成的成果都保留。${busy.length?`（${busy.map(a=>a.name).join('、')} 正在执行，需等这一轮结束）`:''}`;
+    $('#resume-mission').disabled=busy.length>0;
+    $('#resume-mission').title=busy.length?'还有成员在执行，等它本轮结束后再继续':'重新排队被中断的工作单并复位待命成员';
   }
 $('#accept-mission').disabled=!!m?.accepted;$('#accept-mission').textContent=m?.accepted?'✓ 已确认验收':'✓ 确认验收';
   $('#stop-mission').hidden=!isBusy(m);$('#stop-mission').disabled=m?.status==='stopping';$('#send-message').disabled=submitting||!connection.connected||!!m?.archivedAt;$('#message-input').disabled=!!m?.archivedAt;$('#compose-hint').textContent=m?.archivedAt?'已归档，恢复后可以继续对话':isBusy(m)?'补充要求会送入当前执行':m?.harnessVersion?'补充要求会作为所选成员的新工作单':'继续对话，保留已完成的工作';
@@ -178,7 +185,7 @@ function renderMembers(m){
   const agents=m?.agents||TEAM.map(member=>({...member,id:`office-resident-${member.role}`,status:'idle',sceneOnly:true,summary:member.description,write:member.fullAccess}));
   if(m&&!agents.some(a=>a.id===selectedAgent))selectedAgent=m.coordinatorId;
   $('#member-count').textContent=String(agents.length).padStart(2,'0');
-  $('#member-list').innerHTML=agents.map(a=>{const meta=teamMember(a.role)||a;return `<button class="member ${selectedAgent===a.id?'selected':''}" data-agent="${escape(a.id)}"><div class="member-top"><span class="member-avatar ${a.role}">${memberIcon(a)}</span><span class="member-name"><strong>${escape(displayName(a))}</strong><small>${escape(meta.position||meta.shortPosition||'团队成员')}</small><span>${escape(a.modelName||meta.modelName||a.model||meta.model||'')} · ${permissionLabel(a)}${a.dependsOn?.length?' · 有任务依赖':''}</span></span><span class="member-state ${a.status}">${a.status==='completed'?'已完成':statusNames[a.status]||'待命'}</span></div><div class="member-summary">${escape(a.error||a.summary||meta.description||'')}</div></button>`;}).join('');
+  $('#member-list').innerHTML=agents.map(a=>{const meta=teamMember(a.role)||a;return `<button class="member ${selectedAgent===a.id?'selected':''}" data-agent="${escape(a.id)}"><div class="member-top"><span class="member-avatar ${a.role}">${memberIcon(a)}</span><span class="member-name"><strong>${escape(displayName(a))}</strong><small>${escape(meta.position||meta.shortPosition||'团队成员')}</small><span>${escape(a.modelName||meta.modelName||a.model||meta.model||'')} · ${permissionLabel(a)}${a.dependsOn?.length?' · 有任务依赖':''}</span></span><span class="member-state ${a.status}">${a.status==='completed'?'已完成':statusNames[a.status]||'待命'}</span>${['failed','stopped','interrupted'].includes(a.status)?`<span class="member-retry" role="button" tabindex="0" data-resume-agent="${escape(a.id)}" title="复位这位成员并重新排队它未完成的工作单">↻ 重试</span>`:''}</div><div class="member-summary">${escape(a.error||a.summary||meta.description||'')}</div></button>`;}).join('');
   const signature=selectedTheme+(m?.id||'')+agents.map(a=>a.id+':'+displayName(a,m)).join(',');if(signature!==previousMembers){const selected=$('#message-target').value;$('#message-target').innerHTML=m?agents.map(a=>`<option value="${escape(a.id)}">${escape(displayName(a))}</option>`).join(''):`<option value="">${escape(displayName(agents.find(a=>a.role==='boss')||agents[0],m))}</option>`;$('#message-target').value=m?(agents.some(a=>a.id===selected)?selected:m.coordinatorId):'';previousMembers=signature;}
 }
 function renderRequests(m){
@@ -316,7 +323,18 @@ $('#mission-list').onclick=async e=>{
   else if(button.dataset.newGoal)openTask(button.dataset.newGoal);
   else if(button.dataset.newChat)openChat(button.dataset.newChat);
 };
-$('#member-list').onclick=e=>{const button=e.target.closest('[data-agent]');if(button){selectedAgent=button.dataset.agent;$('#message-target').value=selectedAgent;renderMembers(mission());syncScene(mission());}};
+$('#member-list').onclick=async e=>{
+  const retry=e.target.closest('[data-resume-agent]');
+  if(retry){
+    e.stopPropagation();retry.textContent='…';
+    const m=mission();
+    try{
+      const result=await api(`/missions/${m.id}/resume`,{agentId:retry.dataset.resumeAgent});
+      toast(`已恢复 ${result.revived.join('、')}${result.requeued.length?`，重新排队 ${result.requeued.join('、')}`:''}。`);
+    }catch(error){toast(error.message);retry.textContent='↻ 重试';}
+    return;
+  }
+  const button=e.target.closest('[data-agent]');if(button){selectedAgent=button.dataset.agent;$('#message-target').value=selectedAgent;renderMembers(mission());syncScene(mission());}};
 $('.work-tabs').onclick=e=>{const button=e.target.closest('[data-tab]');if(!button)return;activeTab=button.dataset.tab;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));autoScroll=activeTab==='messages';feedSignature='';renderFeed(mission());};
 function setGraphMaximized(value){
   graphMaximized=value;localStorage.setItem('office-graph-maximized',String(value));document.body.classList.toggle('graph-maximized',value);

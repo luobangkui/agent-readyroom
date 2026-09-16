@@ -434,9 +434,33 @@ export class MissionService extends EventEmitter {
   // 规则：被"中断"的工作单重新排队（它们从未结束，会按输入就绪重新领取，算新一代
   // 执行）；明确失败或用户停止的工作单不静默重放，而是唤醒规划者决定重试或重规划；
   // 超时中断（已请求过打断，可能有外部副作用）也留给规划者判断。
-  async resume(id){
+  // 运行环境掉线造成的失败（不是模型失败）：这些成员复位后可以直接重领工作，
+  // 不需要规划者介入，也不该让界面一直显示一条早已过期的错误。
+  static runtimeFailure(error){return /尚未连接|未连接|连接已关闭|未能启动|不可用|已断开|ECONNREFUSED|ETIMEDOUT|SIGTERM|请求超时/.test(String(error||''));}
+  reviveAgent(m,agent,reason){
+    agent.status='idle';agent.turnId=null;agent.error=null;agent.finishedAt=null;
+    agent.summary=reason||'等待重新领取工作';
+  }
+  async resume(id,{agentId=''}={}){
     const m=this.get(id);
     if(m.archivedAt)throw Object.assign(new Error('这条记录已归档，请先恢复再继续。'),{status:409});
+    // 指定成员：只恢复这一位（界面里失败成员旁边的「重试」）
+    if(agentId){
+      const agent=this.agent(m,agentId);
+      if(ACTIVE.has(agent.status)||agent.status==='queued')throw Object.assign(new Error(`${agent.name} 正在执行或排队，等这一轮结束再重试。`),{status:409});
+      const work=(m.workItems||[]).find(entry=>entry.id===agent.workId&&!entry.replacedBy);
+      const requeued=[];
+      if(work&&work.protocol===2&&['failed','stopped','interrupted','suspended'].includes(work.status)){
+        transition(work,'waiting_input',{kind:'recovery',message:`用户手动恢复 ${agent.name}：重新检查输入后就绪领取`});
+        requeued.push(work.key||work.id);
+      }
+      this.reviveAgent(m,agent,requeued.length?`等待重新领取 ${requeued.join('、')}`:'等待重新领取工作');
+      if(m.status==='interrupted'||m.status==='needs_attention'){m.status='running';m.finishedAt=null;}
+      this.event(m,agent,`用户手动恢复 ${agent.name}${requeued.length?`，重新排队 ${requeued.join('、')}`:'，清除了过期的失败状态'}`,'human');
+      if(!this.save())throw Object.assign(new Error('恢复操作未保存，请重试。'),{status:500});
+      this.teamChanged(m);this.schedule();
+      return {mission:m,requeued,revived:[agent.name],needsPlanner:[],held:[]};
+    }
     if(m.agents.some(a=>ACTIVE.has(a.status)||a.status==='queued'))throw Object.assign(new Error('还有成员在执行或排队，等这一轮结束后再继续。'),{status:409});
     const requeued=[],needsPlanner=[],held=[];
     for(const work of m.workItems||[]){
@@ -450,9 +474,13 @@ export class MissionService extends EventEmitter {
     }
     const revived=[];
     for(const agent of m.agents){
-      if(agent.status!=='interrupted')continue;
-      agent.status='idle';agent.turnId=null;agent.error=null;agent.finishedAt=null;agent.summary='等待重新领取工作';
-      if(agent.workId&&!(m.workItems||[]).some(work=>work.id===agent.workId&&!work.replacedBy&&!['completed','interrupted'].includes(work.status)))agent.workId=null;
+      const work=(m.workItems||[]).find(entry=>entry.id===agent.workId&&!entry.replacedBy);
+      const resumable=!!work&&!['failed','stopped','completed'].includes(work.status);
+      // interrupted = 重启/掉线打断；failed + 运行环境类错误 + 工作单还活着 = 环境问题，不是模型失败
+      const recoverable=agent.status==='interrupted'||(agent.status==='failed'&&resumable&&MissionService.runtimeFailure(agent.error));
+      if(!recoverable)continue;
+      this.reviveAgent(m,agent);
+      if(agent.workId&&!work)agent.workId=null;
       revived.push(agent.name);
     }
     const planner=this.agent(m,m.coordinatorId);

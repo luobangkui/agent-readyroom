@@ -40,6 +40,21 @@ if(snapshot){
   }else console.log('✓ 无活动任务，可以安全重启。');
 }
 
+// 检查与重启之间仍有窗口期：任务可能刚好被派发。杀掉之前再确认一次，
+// 把"以为没人跑、其实刚起来"的概率压到最小；真被中断的成员会在重启后
+// 由页面的「继续推进 / 重试」恢复。
+if(snapshot&&!force){
+  await new Promise(resolve=>setTimeout(resolve,1200));
+  const recheck=await bootstrap().catch(()=>null);
+  const late=recheck?[...activeMissions(recheck),...activeMembers(recheck)]:[];
+  if(late.length){
+    console.log('⚠️  复查发现刚刚有任务开始执行，已中止重启：');
+    for(const {agent}of activeMembers(recheck))console.log(`   成员 ${agent.name} · ${agent.status}`);
+    for(const mission of activeMissions(recheck))console.log(`   使命 ${mission.title.slice(0,40)} · ${mission.status}`);
+    console.log('\n等这一轮结束后再试；确认要中断就加 --force。');
+    process.exit(1);
+  }
+}
 await run('launchctl',['kill','SIGTERM',`gui/${process.getuid()}/${label}`]).catch(error=>{throw new Error(`launchctl 重启失败：${error.message}`);});
 // Wait for the runtime bridges to settle: an immediately-answering service can
 // still be in the middle of connecting Codex/ZCode/DSH/Edge0.

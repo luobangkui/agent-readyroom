@@ -26,3 +26,19 @@ test('the restart helper goes ahead when nothing is running',async t=>{
   assert.ok(!/有活动任务/.test(result.stdout));
   assert.match(result.stdout,/无活动任务|launchctl 重启失败/);
 });
+
+test('the restart helper re-checks just before killing',async t=>{
+  let calls=0;
+  const server=http.createServer((request,response)=>{
+    calls++;
+    // 第一次问是空的，复查时刚好有任务起来了
+    const missions=calls===1?[]:[{title:'刚好开始',status:'running',agents:[{name:'鸣人',status:'running',summary:''}]}];
+    response.setHeader('Content-Type','application/json');
+    response.end(JSON.stringify({connection:{providers:{codex:{connected:true,authenticated:true}}},missions}));
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close());
+  const result=await call(server.address().port);
+  assert.equal(result.code,1,'复查发现有人在跑时应当中止');
+  assert.match(result.stdout,/复查发现刚刚有任务开始执行/);
+  assert.match(result.stdout,/鸣人/);
+});

@@ -107,3 +107,52 @@ test('继续：重启后通过服务重载也能恢复（读盘路径）',async 
   assert.ok(reloaded.missions.find(entry=>entry.id===mission.id).agents.every(agent=>agent.status!=='interrupted'),'没有成员卡在中断态');
   assert.ok(JSON.parse(readFileSync(reloaded.file,'utf8')).length>0);
 });
+
+test('继续：运行环境掉线造成的成员失败会被复位，过期的错误不再挂着',async t=>{
+  const f=await crashed(t);
+  // 小樱式的现场：成员因运行环境掉线失败，但工作单还活着（ready/等范围）
+  const ops=f.mission.agents.find(agent=>agent.role==='ops');
+  ops.status='failed';ops.error='DSH 尚未连接，请确认本机 dsh 可用';
+  const review=work(f.mission,'review');
+  review.status='ready';review.agentId=ops.id;ops.workId=review.id;
+  const result=await f.service.resume(f.mission.id);
+  await tick();
+  assert.ok(result.revived.includes(ops.name),`环境类失败应被复位：${result.revived.join('、')}`);
+  assert.equal(ops.status!=='failed',true);
+  assert.equal(ops.error,null,'过期的失败原因被清掉');
+  assert.notEqual(review.status,'failed','工作单没有被误判为失败');
+});
+
+test('继续：可以只恢复某一位成员，并重新排队它未完成的工作单',async t=>{
+  const f=await crashed(t);
+  const ops=f.mission.agents.find(agent=>agent.role==='ops');
+  const review=work(f.mission,'review');
+  review.status='failed';review.agentId=ops.id;review.report=null;ops.workId=review.id;
+  ops.status='failed';ops.error='模型返回错误';
+  const result=await f.service.resume(f.mission.id,{agentId:ops.id});
+  await tick();
+  assert.deepEqual(result.revived,[ops.name]);
+  assert.deepEqual(result.requeued,['review'],'成员自己的失败工作单重新排队');
+  assert.equal(ops.status!=='failed',true);
+  assert.equal(['waiting_input','ready'].includes(review.status),true,`工作单回到可调度状态：${review.status}`);
+});
+
+test('继续：成员正在执行时拒绝单独恢复它',async t=>{
+  const f=await crashed(t);
+  const ops=f.mission.agents.find(agent=>agent.role==='ops');
+  ops.status='running';
+  await assert.rejects(f.service.resume(f.mission.id,{agentId:ops.id}),/正在执行或排队/);
+});
+
+test('继续：模型失败（非环境问题）不会被静默复位',async t=>{
+  const f=await crashed(t);
+  const ops=f.mission.agents.find(agent=>agent.role==='ops');
+  const review=work(f.mission,'review');
+  review.status='failed';review.agentId=ops.id;ops.workId=review.id;
+  ops.status='failed';ops.error='模型拒绝了这次调用：内容策略';
+  const result=await f.service.resume(f.mission.id);
+  await tick();
+  assert.ok(!result.revived.includes(ops.name),'模型失败要交给规划者判断，不静默复位');
+  assert.equal(ops.status,'failed');
+  assert.equal(review.status,'failed');
+});
