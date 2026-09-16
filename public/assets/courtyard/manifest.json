@@ -1,0 +1,254 @@
+{
+  "provider": "Poly Haven",
+  "license": "CC0",
+  "licenseURL": "https://polyhaven.com/license",
+  "assets": [
+    {
+      "id": "wood_table_001",
+      "type": "material",
+      "source": "https://polyhaven.com/a/wood_table_001",
+      "resources": [
+        {
+          "path": "wood_table_001/color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_diff_1k.jpg",
+          "bytes": 215573,
+          "sha256": "460dd08d240f4a1f02982415048c3c5c200f385db212da18dc7e2df68bf4d0be"
+        },
+        {
+          "path": "wood_table_001/normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_nor_gl_1k.jpg",
+          "bytes": 51927,
+          "sha256": "9bf7ddf5721e225c20290f1772ae37f9bdfd49658f6d458259eb794e2149d3cf"
+        },
+        {
+          "path": "wood_table_001/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_rough_1k.jpg",
+          "bytes": 237261,
+          "sha256": "a2ca9ae89dfe7b8e2e5e92f0aa43467845417de8a50205b5852ef0d57c7624f9"
+        },
+        {
+          "path": "wood_table_001/ao.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_ao_1k.jpg",
+          "bytes": 163820,
+          "sha256": "44bac849eff9e893f932086f0953acb57adc0e57a97a04db4af8b2e3c87c6b67"
+        }
+      ]
+    },
+    {
+      "id": "coated_pine",
+      "type": "material",
+      "source": "https://polyhaven.com/a/coated_pine",
+      "resources": [
+        {
+          "path": "coated_pine/color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coated_pine/coated_pine_diff_1k.jpg",
+          "bytes": 710600,
+          "sha256": "afee7cfb2ec1716edc712f929cdb3d3dfbac5a0ba290e25943b4472a8144bbaf"
+        },
+        {
+          "path": "coated_pine/normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coated_pine/coated_pine_nor_gl_1k.jpg",
+          "bytes": 443383,
+          "sha256": "91eb707d7b0dd44133502878f37ede93e6be23c2019e64df72dffe46f6985b3a"
+        },
+        {
+          "path": "coated_pine/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coated_pine/coated_pine_rough_1k.jpg",
+          "bytes": 491513,
+          "sha256": "6ecebef8ffde1833ee9656d3bf7cf863694ad99ac041cacf2fc5432b2f5383e1"
+        },
+        {
+          "path": "coated_pine/ao.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coated_pine/coated_pine_ao_1k.jpg",
+          "bytes": 651022,
+          "sha256": "6ebc807b57c3ef50dbd102029f1950f29312c6c9d59b01db8fe5fdcbefbc51f2"
+        }
+      ]
+    },
+    {
+      "id": "oak_veneer_01",
+      "type": "material",
+      "source": "https://polyhaven.com/a/oak_veneer_01",
+      "resources": [
+        {
+          "path": "oak_veneer_01/color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_veneer_01/oak_veneer_01_diff_1k.jpg",
+          "bytes": 641756,
+          "sha256": "c14681f72f59f17bff568cae7a837641443b607b899f0c279cd64a5638f877a7"
+        },
+        {
+          "path": "oak_veneer_01/normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_veneer_01/oak_veneer_01_nor_gl_1k.jpg",
+          "bytes": 484844,
+          "sha256": "1297acf7b4476d5ccd83cc8b27be96aa6110f7a9c3a40be0bd767bf81b17db01"
+        },
+        {
+          "path": "oak_veneer_01/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_veneer_01/oak_veneer_01_rough_1k.jpg",
+          "bytes": 865194,
+          "sha256": "ca2af5649b628ef05f196793d68cdca874c12ceb6e9ae566976546d9dd5a2604"
+        },
+        {
+          "path": "oak_veneer_01/ao.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_veneer_01/oak_veneer_01_ao_1k.jpg",
+          "bytes": 437549,
+          "sha256": "bfc4e2be0a6828b1a9ac241f806ec0bd86f88c3ec87fa3ea9fbc9eeecfe60aa8"
+        }
+      ]
+    },
+    {
+      "id": "white_plaster_02",
+      "type": "material",
+      "source": "https://polyhaven.com/a/white_plaster_02",
+      "resources": [
+        {
+          "path": "white_plaster_02/color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_diff_1k.jpg",
+          "bytes": 527219,
+          "sha256": "a1ebbe091bd1ae93d2abd5de8d69f9003a8d0ee6532bcf9a87c2492c97051f23"
+        },
+        {
+          "path": "white_plaster_02/normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_nor_gl_1k.jpg",
+          "bytes": 652310,
+          "sha256": "eb572ca3630d5bfde72e2601b1f02412da23ca005cd19384dced8690be4cb783"
+        },
+        {
+          "path": "white_plaster_02/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_rough_1k.jpg",
+          "bytes": 295900,
+          "sha256": "4ff1fe957cd161b07f721fe6c28a9459c8c2e8ec65627a26c16e483a07c80d85"
+        },
+        {
+          "path": "white_plaster_02/ao.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_ao_1k.jpg",
+          "bytes": 528899,
+          "sha256": "01a479ced98447569958ccb6d396ed700dc9f8fd3197c86e52836382b24126c6"
+        }
+      ]
+    },
+    {
+      "id": "cotton_jersey",
+      "type": "material",
+      "source": "https://polyhaven.com/a/cotton_jersey",
+      "resources": [
+        {
+          "path": "cotton_jersey/color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_diff_1k.jpg",
+          "bytes": 581360,
+          "sha256": "0f1b790e4087223275aaa6fdffdd46a556a26d2af72cd811acf72ba9c21ec1f6"
+        },
+        {
+          "path": "cotton_jersey/normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_nor_gl_1k.jpg",
+          "bytes": 678670,
+          "sha256": "9b79709806511b62567fb007ff61009c3b194bb0d0821fbaee3faf1b2bff0318"
+        },
+        {
+          "path": "cotton_jersey/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_rough_1k.jpg",
+          "bytes": 865264,
+          "sha256": "89bed18f5c3f03fc7b4c2382446891629716278e521e06e8b7f6c8f02dd22590"
+        },
+        {
+          "path": "cotton_jersey/ao.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_ao_1k.jpg",
+          "bytes": 675590,
+          "sha256": "faf1f559ec48a26796a42f58ed355a67e59f333c5a6861a81dad91fc82e8f7f6"
+        }
+      ]
+    },
+    {
+      "id": "potted_plant_02",
+      "type": "model",
+      "source": "https://polyhaven.com/a/potted_plant_02",
+      "resources": [
+        {
+          "path": "potted_plant_02/model.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/potted_plant_02/potted_plant_02_1k.gltf",
+          "bytes": 6653,
+          "sha256": "c533dcce0d1aa4379eb7db04601a04983f8df2422b28578de922655a416e64a9"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_leaves_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_leaves_diff_1k.jpg",
+          "bytes": 167700,
+          "sha256": "3643dce6e6c0a9f40129bd837ec1a11802e8f43ea43cb29e58219d82e0ac632b"
+        },
+        {
+          "path": "potted_plant_02/potted_plant_02.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/potted_plant_02/potted_plant_02.bin",
+          "bytes": 1852244,
+          "sha256": "9c9812482c78a59789ed32fa842b4cbd9365e09c900c31ebb998e5efe627fe97"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_pot_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_pot_rough_1k.jpg",
+          "bytes": 114886,
+          "sha256": "4e92ad8ee0f098050785d9a025e2c5a7d55bc7a7f7e1916cc7627fc7824a938f"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_leaves_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_leaves_rough_1k.jpg",
+          "bytes": 102396,
+          "sha256": "ac8959f70c0e91e77f3cd6fd3f73578b8aed64ac6c33fc34ac027a4e88276960"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_pot_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_pot_diff_1k.jpg",
+          "bytes": 155244,
+          "sha256": "684949bf24821d7e951d46915366b5a388d2e4ccaaa9d5284e718c83604705e9"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_leaves_nor_gl_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_leaves_nor_gl_1k.jpg",
+          "bytes": 127232,
+          "sha256": "e0fe090ff7a511729c9bbe59df7288b400430fdab178529443dec75e0f06007d"
+        },
+        {
+          "path": "potted_plant_02/textures/potted_plant_02_pot_nor_gl_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/potted_plant_02/potted_plant_02_pot_nor_gl_1k.jpg",
+          "bytes": 108343,
+          "sha256": "981a68721c8b7b9ac26b96d0210334599d5e8f529362f505082c071a0a58e86c"
+        }
+      ]
+    },
+    {
+      "id": "chinese_tea_table",
+      "type": "model",
+      "source": "https://polyhaven.com/a/chinese_tea_table",
+      "resources": [
+        {
+          "path": "chinese_tea_table/model.gltf",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/chinese_tea_table/chinese_tea_table_1k.gltf",
+          "bytes": 2793,
+          "sha256": "4c1987aa1978c4fe1dfd0f5f10739df399346fc4c9373315d8d4b0cc798d8b01"
+        },
+        {
+          "path": "chinese_tea_table/textures/chinese_tea_table_arm_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chinese_tea_table/chinese_tea_table_arm_1k.jpg",
+          "bytes": 504125,
+          "sha256": "5d93474de9d0560d8a9a46a498fc6f64fb030f9cec6e6eb8f95c36dfc8e09e94"
+        },
+        {
+          "path": "chinese_tea_table/chinese_tea_table.bin",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/chinese_tea_table/chinese_tea_table.bin",
+          "bytes": 78792,
+          "sha256": "e584dbcf8d654c662ef849ef6111b11dc9f87e9a7ea8dc98c7d32dbfe10b7e52"
+        },
+        {
+          "path": "chinese_tea_table/textures/chinese_tea_table_nor_gl_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chinese_tea_table/chinese_tea_table_nor_gl_1k.jpg",
+          "bytes": 548449,
+          "sha256": "4b6eea9bbf344912313a1046fd3e5183970a907b6dbd55d1ef465e27dd2d0859"
+        },
+        {
+          "path": "chinese_tea_table/textures/chinese_tea_table_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chinese_tea_table/chinese_tea_table_diff_1k.jpg",
+          "bytes": 447131,
+          "sha256": "beaff8984d8fd498b7cfecc2e5decd4db3ba6c87583acc41d18767326cb3ae3c"
+        }
+      ]
+    }
+  ]
+}

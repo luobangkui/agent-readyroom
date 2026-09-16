@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>打开当前人物模型</title></head>
+<body><p><a id="preview" href="/naruto-preview.html?character=tsunade">查看当前人物模型</a></p>
+<script>
+const character=new URLSearchParams(location.search).get('character')==='sakura'?'sakura':'tsunade';
+const target=`/naruto-preview.html?character=${character}`;
+document.querySelector('#preview').href=target;location.replace(target);
+</script></body></html>

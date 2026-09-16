@@ -1,0 +1,39 @@
+{
+  "version": 6,
+  "bytes": 76285708,
+  "sha256": "8e4d3e075810000d40853469037779bcc9301c4464c7b94ee3c91745e45092bf",
+  "sourceSha256": "8e4d3e075810000d40853469037779bcc9301c4464c7b94ee3c91745e45092bf",
+  "sourceFile": "anime+character+3d+model.glb",
+  "generator": "Tripo",
+  "pipeline": "direct GLB replacement; office runtime keeps walk in place",
+  "vertices": 987634,
+  "triangles": 1880236,
+  "meshCount": 1,
+  "skinnedMeshCount": 1,
+  "info": {
+    "boneCount": 41,
+    "height": 0.9796141039352846,
+    "officeScale": 3,
+    "seatOffsetZ": -0.67,
+    "chairScaleY": 1.55,
+    "textures": 3,
+    "extraction": "Unmodified user-supplied GLB with embedded skin, PBR textures and animations",
+    "motionLimit": "Typing is intentionally not mapped; working uses the seated clip."
+  },
+  "animations": [
+    {
+      "name": "preset:biped:sit",
+      "duration": 7.208333492279053
+    },
+    {
+      "name": "preset:biped:walk",
+      "duration": 2.375
+    },
+    {
+      "name": "preset:biped:agree",
+      "duration": 4.041666507720947
+    }
+  ],
+  "modelRevision": "8e4d3e075810",
+  "motionRevision": null
+}

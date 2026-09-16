@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "bytes": 10502224,
+  "sha256": "1c353171055410f496e2d9d3df01f3b7c7b03b346356397a94a7d214361b6bf9",
+  "sourceSha256": "a418406be4440bda0d88a7879855a4118390ab4954df5b7dc2424562d5b4d9d3",
+  "sourceArchive": "xiaoyingglf.zip",
+  "sourceFile": "base_basic_pbr.glb",
+  "sourceTriangles": 34658,
+  "triangles": 34658,
+  "vertices": 19875,
+  "meshCount": 1,
+  "skinnedMeshCount": 1,
+  "textureSha256": [
+    "262f24d5b1cf3cf5480f6f9a45503cbb961f04873418ee957ca81b62f3f2acf4",
+    "52cf2a222f8a3208eda543be2e46014cf17aa256790cb6e5826057d8effcecdc",
+    "35f55ea508ee304678d7166815f765f1ff81342e7150e441a721631519b0cc39"
+  ],
+  "info": {
+    "boneCount": 18,
+    "forward": "+Z",
+    "height": 2.220139342546463,
+    "extraction": "Full single-character mesh; no parts removed",
+    "sourceScale": 1.17,
+    "sourceCenterX": -0.0002069920301437378,
+    "sourceCenterZ": 0.08,
+    "armVertexCount": 1579,
+    "handVertexCount": {
+      "Left": 344,
+      "Right": 359
+    },
+    "motionLimit": "Source hands are closed fists. Working uses alternating wrist motion near the keyboard; fingers are not individually articulated."
+  },
+  "animations": [
+    {
+      "name": "Idle",
+      "duration": 4
+    },
+    {
+      "name": "Walk",
+      "duration": 1.4
+    },
+    {
+      "name": "Sitting",
+      "duration": 6
+    },
+    {
+      "name": "SitDown",
+      "duration": 1.2
+    },
+    {
+      "name": "StandUp",
+      "duration": 1.2
+    },
+    {
+      "name": "Typing",
+      "duration": 6
+    }
+  ],
+  "modelRevision": "1c3531710554",
+  "motionRevision": "28bbc59e495f"
+}

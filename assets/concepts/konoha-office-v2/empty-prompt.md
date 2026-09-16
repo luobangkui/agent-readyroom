@@ -1,0 +1,7 @@
+# 无人物场景概念
+
+文件：concept-empty.png。使用内置 image_gen 编辑 concept.png，保留前版，去掉四位人物并补齐被遮挡的空椅与桌面。
+
+## 完整提示词
+
+Use case: precise-object-edit. Edit the provided Konoha office concept image into an unoccupied environment concept. Remove ONLY all four seated chibi people (Tsunade, Sakura, Naruto and Hiruzen), including their hair, bodies, clothes, limbs and their character-cast shadows. Keep all four office chairs, fully reconstructing the empty seats, backrests and armrests where the people previously occluded them. Naturally reconstruct any tabletop, floor and objects exposed by removing the people. Restore held objects such as the cup naturally onto the corresponding desktop if appropriate. The office must contain no living people, no character silhouettes, no added figurines. Preserve the carved Hokage Rock faces in the DISTANT landscape as architectural stone sculptures; those are background scenery, not seated characters to remove. Keep everything else as close as possible to the original: exactly the same camera angle, framing, wide 16:9 composition, central four-workstation desk arrangement, monitors/keyboards, shelving, scrolls, mission board, shoji windows, garden, sofa and tea table, ramen nook and stools, roof tiles, plants, stone foundation, afternoon light, warm color palette and polished stylized 3D diorama render quality. Do not redesign, relight, crop or rearrange the room. Do not add any text, annotations or UI. Output one clean high-quality empty office environment image.

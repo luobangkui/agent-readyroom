@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "bytes": 9587288,
+  "sha256": "9091893bfda53020e73ed43b461c09739ca2902630fae3f021790f4875aeb0d7",
+  "sourceSha256": "6e0522651991d2b0ba991cc49d894d062988cbf9a9eeacd78288476dbb9d724e",
+  "sourceArchive": "gangshouglf.zip",
+  "sourceFile": "base_basic_pbr.glb",
+  "sourceTriangles": 36392,
+  "triangles": 36392,
+  "vertices": 20860,
+  "meshCount": 1,
+  "skinnedMeshCount": 1,
+  "textureSha256": [
+    "9fbc045edc66999ee2990c5c68d03d251861b801d8cff182e16dfc0151c5d269",
+    "a66e6dca7bb3ef369644e39a2f0f9fe02fccc4a14cd61425b2bbbb29ebdba840",
+    "6daecbe808f41e0c086071d691646e981ff0640e40aba80f75c8944167f50321"
+  ],
+  "info": {
+    "boneCount": 18,
+    "forward": "+Z",
+    "height": 2.2279639410972596,
+    "extraction": "Full single-character mesh; no parts removed",
+    "sourceScale": 1.18,
+    "sourceCenterX": -0.0003809928894042969,
+    "motionLimit": "Articulated shoulders, elbows and wrists; alternating keyboard taps with planted feet."
+  },
+  "animations": [
+    {
+      "name": "Idle",
+      "duration": 4
+    },
+    {
+      "name": "Walk",
+      "duration": 1.4
+    },
+    {
+      "name": "Sitting",
+      "duration": 6
+    },
+    {
+      "name": "SitDown",
+      "duration": 1.2
+    },
+    {
+      "name": "StandUp",
+      "duration": 1.2
+    },
+    {
+      "name": "Typing",
+      "duration": 6
+    }
+  ],
+  "modelRevision": "9091893bfda5",
+  "motionRevision": "8039ec6e5761"
+}

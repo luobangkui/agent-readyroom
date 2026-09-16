@@ -1,0 +1,14 @@
+Chibi Characters by Styloo — CC0 1.0.
+Author: https://styloo.itch.io/chibi
+Author listing / download: https://store.godotengine.org/asset/styloo/chibi/
+Original GLB mesh, textures, rig and built-in animations are preserved byte-for-byte.
+Four selected variants: merchant, student, archer, ninja.
+
+Additional office sitting animations are retargeted from Quaternius Universal Animation Library Standard (CC0).
+https://quaternius.com/packs/universalanimationlibrary.html
+Public glTF conversion: https://github.com/J-Ponzo/gltf-universal-animation-library
+Original animation license: ../../animations/quaternius/LICENSE
+Retarget script: scripts/build-styloo-seating.mjs
+
+Display preferences: hide the original hat and bag nodes; original GLB files remain intact.
+Office display names: 可可 / 小满 / 夏禾 / 阿澄.

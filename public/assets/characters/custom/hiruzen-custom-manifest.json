@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "bytes": 58351044,
+  "sha256": "0948bd0fb8867cd5c1eed28396a80474dc1ae9f2d1d1b250e6cfc3a2262c995c",
+  "sourceSha256": "b2172349f3204e36930d5caf5cd4c8bf7b7ef4cf83acaa2a1f58c0c42994b2c4",
+  "sourceArchive": "sandaimu2.zip",
+  "sourceFile": "base_basic_pbr.glb",
+  "sourceTriangles": 1000000,
+  "triangles": 1000000,
+  "vertices": 657157,
+  "meshCount": 1,
+  "skinnedMeshCount": 1,
+  "textureSha256": [
+    "fdb2e6c860ac9898c686d498bf9755783e8cff00cb8001898ac981fa060e3178",
+    "4fb6dea8a6d62279b079a4b259b1a68915a7868d9f6d02b0ae8340bb4f69bb29",
+    "8e833fc9aed0245966063f11e4cf4cc9d81c9a0b8c748464314c9835962bf3aa"
+  ],
+  "info": {
+    "boneCount": 18,
+    "forward": "+Z",
+    "height": 2.2388858866691588,
+    "extraction": "Full single-character mesh; no parts removed",
+    "sourceScale": 1.18,
+    "sourceCenterX": 0.0004665255546569824,
+    "motionLimit": "Articulated shoulders, elbows and wrists; alternating keyboard taps with planted feet."
+  },
+  "animations": [
+    {
+      "name": "Idle",
+      "duration": 4
+    },
+    {
+      "name": "Walk",
+      "duration": 1.4
+    },
+    {
+      "name": "Sitting",
+      "duration": 6
+    },
+    {
+      "name": "SitDown",
+      "duration": 1.2
+    },
+    {
+      "name": "StandUp",
+      "duration": 1.2
+    },
+    {
+      "name": "Typing",
+      "duration": 6
+    }
+  ],
+  "modelRevision": "0948bd0fb886",
+  "motionRevision": "87289ee95129"
+}

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.log
+.office-data/
+.office-test-data/
+workspace/TEAM_HELLO.md
+# Blender 工作目录与自动备份（可再生，不进仓库）
+.blender-*/
+*.blend1
+
+# Python 字节码缓存
+__pycache__/
+*.pyc

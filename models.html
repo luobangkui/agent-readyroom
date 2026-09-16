@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>人物试衣间 · 待命室</title></head>
+<body>
+  <main>
+    <header><a href="/" class="back">← 回待命室</a><span class="edition">STYLOO</span></header>
+    <section class="intro"><span class="eyebrow">动漫待命室</span><h1>四位新同事</h1><p>原作模型，近看动作与造型。</p></section>
+    <div id="model-stage" aria-label="可旋转的 Q 版人物预览"></div>
+    <aside class="model-panel">
+      <span class="eyebrow">STYLOO · ORIGINAL</span><h2 id="model-name">可可</h2>
+      <div id="model-picker" class="model-picker" role="group" aria-label="选择模型"></div>
+      <div class="source-links"><a href="/assets/characters/styloo/CREDITS.txt" target="_blank" rel="noreferrer">模型来源 ↗</a></div>
+    </aside>
+    <footer class="stage-controls">
+      <div class="actions" role="group" aria-label="人物动作"><button data-action="typing" aria-pressed="true">敲键盘</button><button data-action="sitting" aria-pressed="false">坐下</button><button data-action="idle" aria-pressed="false">起身待机</button><button data-action="walking" aria-pressed="false">走一圈</button></div>
+      <div class="view-actions"><button id="pause" aria-pressed="false" aria-label="暂停动画">Ⅱ</button><button id="desk" aria-pressed="true">办公桌</button><button id="reset-camera">重置视角</button></div>
+      <output id="load-status" role="status">正在加载模型…</output><p class="gesture">拖动旋转 · 滚轮缩放</p>
+    </footer>
+  </main>
+  <script type="module" src="/src/model-room.js"></script>
+</body>
+</html>

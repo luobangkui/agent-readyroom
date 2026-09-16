@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="referrer" content="no-referrer"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; frame-src 'self' blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:24678 ws://localhost:24678; base-uri 'none'; form-action 'none'"/>
+<title>文档预览 · 待命室</title></head>
+<body>
+  <header class="document-toolbar"><a href="/" class="back-office">← 待命室</a><div class="document-heading"><small>LOCAL DOCUMENT</small><h1 id="document-name">正在打开文档…</h1></div><div class="document-actions"><button id="toggle-source" hidden>查看源码</button><button id="reload-document">刷新</button><button id="copy-path" disabled>复制本地路径</button><button id="download-document" disabled>下载原文件</button></div></header>
+  <div class="document-meta"><span id="document-path"></span><span id="document-size"></span></div>
+  <p id="document-status" role="status">正在连接本地服务…</p>
+  <main id="document-content" aria-label="文档内容" aria-busy="true"></main>
+  <script type="module" src="/src/document-preview.js"></script>
+</body></html>

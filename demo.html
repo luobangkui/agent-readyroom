@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f4ee" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23db7049'/%3E%3Cpath d='M10 23V13h8v10m4 5V13h8v15' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E" />
+    <title>Readyroom 3D · 待命室</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <a class="brand" href="/" aria-label="待命室首页"><span class="brand-mark"><i></i><i></i><i></i></span><span>待命室<small>READYROOM</small></span></a>
+        <div class="breadcrumb">工作空间 <span>/</span> <strong>我们的第一间待命室</strong></div>
+        <span class="demo-badge"><i></i> 3D 场景演示</span>
+      </header>
+      <main class="workspace">
+        <section class="scene-panel" aria-label="可交互的 3D 待命室">
+          <div class="scene-heading"><span class="eyebrow">A SMALL TEAM. BIG IDEAS.</span><h1>今天，也一起好好工作。</h1><p>一位老板，一位员工。故事从这间小待命室开始。</p></div>
+          <div class="scene-tools"><button id="view-button" class="icon-button" title="切换俯视 / 透视" aria-label="切换俯视视角">▱</button><button id="reset-view" class="icon-button" title="重置视角" aria-label="重置视角">⌖</button><button id="theme-button" class="icon-button" title="切换白天 / 夜晚" aria-label="切换夜晚">☼</button></div>
+          <div id="viewport"><div id="loading">正在布置待命室<span>搬进桌椅，再放上一盆绿植…</span></div></div>
+          <div id="labels" aria-hidden="true"></div>
+          <div class="room-tag"><i></i> <span id="room-mode">午后时光</span><span class="room-divider"></span> 2 人在待命室</div>
+          <div class="scene-help"><span>↔ 拖动旋转</span><span>⌕ 滚轮缩放</span><span>◎ 点击人物</span></div>
+          <div class="action-dock" aria-label="待命室互动"><button class="primary" id="assign-button"><span>↗</span> 派个任务 <kbd>1</kbd></button><button id="meeting-button"><span>♧</span> 碰个头 <kbd>2</kbd></button><button id="coffee-button"><span>♨</span> 喝杯咖啡 <kbd>3</kbd></button><span class="dock-divider"></span><button id="auto-button" aria-pressed="false" title="自动播放完整工作流程"><span>▷</span> 自动演示</button></div>
+        </section>
+        <aside class="sidebar">
+          <section class="team-section"><div class="section-title"><h2>待命室成员</h2><span>02</span></div>
+            <button class="person-card selected" data-person="boss"><span class="avatar boss-avatar"><span>👨🏻‍💼</span></span><span class="person-meta"><strong>老罗 <small>BOSS</small></strong><span>老板 · 把握大方向</span></span><i class="online"></i></button>
+            <button class="person-card" data-person="employee"><span class="avatar employee-avatar"><span>👩🏻‍💻</span></span><span class="person-meta"><strong>小林 <small>TEAM</small></strong><span>员工 · 让想法落地</span></span><i class="online"></i></button>
+          </section>
+          <section class="inspector"><div class="inspector-top"><span id="detail-role">THE BOSS</span><span class="status-pill" id="detail-status">思考中</span></div><h2 id="detail-name">老罗<span>的工作日</span></h2><p id="detail-description">好想法需要一个好搭档。<br>正在想今天要做点什么。</p><div class="energy-label"><span>今日状态</span><strong id="energy-label">灵感在线</strong></div><div class="energy-track"><div id="energy-fill"></div></div><div class="inspector-footer"><span><i></i> 已在岗</span><span id="detail-location">老板工位</span></div></section>
+          <section class="task-section"><div class="section-title"><h2>手头的事情</h2><span class="task-count" id="completed-count">完成 0</span></div><div id="task-card"><span class="task-icon">✳</span><div><strong id="task-title">好点子，等待发生</strong><p id="task-status">派个任务，看看他们如何协作</p></div></div><div class="task-progress"><div id="task-progress"></div></div><div class="task-stages"><span data-stage="briefing">派发</span><span data-stage="working">执行</span><span data-stage="reporting">汇报</span><span data-stage="done">完成</span></div></section>
+          <section class="activity-section"><div class="section-title"><h2>待命室动态</h2><span class="live-label"><i></i> LIVE</span></div><ol id="activity-list" aria-live="polite"></ol></section>
+          <div class="sidebar-note"><span>✦</span><p>给想法一点空间，给工作一点乐趣。<br><small>本地模拟演示 · 暂未接入 AI Agent</small></p></div>
+        </aside>
+      </main>
+      <footer class="footer"><span><i></i> READYROOM <span class="footer-version">/ PROTOTYPE 0.1</span></span><span>小团队，也有大大的可能。<span class="footer-divider">·</span> Made of little moments</span><button id="restart-button">↺ 重新开始</button></footer>
+      <div id="toast" role="status"></div>
+    </div>
+    <script type="module" src="/src/demo.js"></script>
+  </body>
+</html>

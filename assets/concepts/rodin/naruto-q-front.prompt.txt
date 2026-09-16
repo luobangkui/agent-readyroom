@@ -1,0 +1,8 @@
+Use case: precise-object-edit
+Asset type: single character front-view image for Rodin image-to-3D reconstruction.
+Input image: the supplied four-panel concept board is the edit target. Select ONLY Naruto's FRONT view, the leftmost figure in panel 3 at the bottom left.
+Primary request: extract this exact one full-body Q/chibi Naruto into one standalone image. Preserve the visible character's face, small smile, blue eyes, whisker marks, yellow spiky hair, metal forehead protector with leaf emblem, orange and dark-gray zipped jacket and ribbed light collar, orange cropped trousers, thigh band and pouch, black open-toe sandals, materials, and original chibi proportions exactly. Preserve the original relaxed front-facing pose, arms slightly separated from body and both feet planted.
+Scene/backdrop: uniform plain very light neutral gray background, no context, no pedestal.
+Composition/framing: one single front-facing character, centered, full body from highest hair tip through both sandals, ample small margins all around, vertical portrait image. Keep all fingers, accessories and feet intact.
+Style/medium: retain the exact polished 3D toy-like concept rendering and fabric/hair detail of the reference; do not redesign or make realistic adult proportions.
+Constraints: only remove all other characters/views, panel labels, divider lines and surrounding layout and enlarge the extracted Naruto. No extra objects, no added weapons, no side/back view, no turntable, no second figure, no text, no watermark. Do not alter outfit, color palette, hairstyle, stance or identity.
