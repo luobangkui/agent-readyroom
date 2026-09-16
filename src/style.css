@@ -224,3 +224,11 @@ body.graph-maximized{overflow:hidden}
 .dag-detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:10px;line-height:1.6}
 .dag-detail dt{color:#96a087;white-space:nowrap}
 .dag-detail dd{margin:0;color:#5c6a51;overflow-wrap:anywhere}
+
+/* 中断恢复横幅 */
+.resume-banner{display:flex;align-items:center;gap:12px;justify-content:space-between;margin:10px 0 0;padding:10px 12px;border:1px solid #e2cfa4;background:#fdf8ec;border-radius:9px}
+.resume-banner[hidden]{display:none}
+.resume-text{min-width:0}
+.resume-text strong{display:block;font-size:11.5px;color:#8b733f}
+.resume-text p{margin:3px 0 0;font-size:10px;line-height:1.6;color:#9a8459;overflow-wrap:anywhere}
+.resume-banner .button{flex-shrink:0}

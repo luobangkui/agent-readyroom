@@ -51,8 +51,8 @@ const server=http.createServer(async(req,res)=>{
         if(!mission){let pending=pendingCreates.get(key);if(!pending){pending=service.create(data).then(m=>{m.clientRequestId=key;service.touch(m);return m;});pendingCreates.set(key,pending);}try{mission=await pending;}finally{pendingCreates.delete(key);}}
         json(res,201,{mission});return;
       }
-      const route=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/(message|stop|answer|accept|archive|restore)$/);
-      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):service.accept(id);json(res,200,{mission});return;}
+      const route=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/(message|stop|answer|accept|archive|restore|resume)$/);
+      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):action==='resume'?await service.resume(id):service.accept(id);json(res,200,{mission});return;}
       json(res,404,{error:'接口不存在'});return;
     }
     if(vite){vite.middlewares(req,res);return;}

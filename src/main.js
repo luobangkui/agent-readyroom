@@ -107,7 +107,20 @@ function render(){
   $('#mission-meta').innerHTML=m?`<span>${escape(state.connection.models?.find(x=>x.id===m.model)?.name||m.model)}</span><span>${escape(m.effort)}</span><span>${modeNames[m.mode]}</span><span title="${escape(m.cwd)}">${escape(m.cwd.split('/').pop())}</span>`:'<span>GPT-6 Astra</span><span>协作交付</span>';
   const plan=m?.agents.flatMap(a=>a.plan)||[],complete=plan.filter(s=>s.status==='completed').length;
   $('#mission-progress').innerHTML=plan.length?`<div class="mission-progress"><div class="progress-caption"><span>实际计划步骤</span><span>${complete} / ${plan.length}</span></div><div class="progress-track"><i style="width:${complete/plan.length*100}%"></i></div></div>`:m?`<div class="indeterminate">${isBusy(m)?'<i></i>':''}${escape(phaseNames[m.phase]||statusNames[m.status])} · ${m.status==='completed'?'请查看交付结果':'暂无可计数的计划'}</div>`:'';
-  $('#accept-mission').hidden=!m||!!m.archivedAt||m.kind==='chat'||m.status!=='completed';$('#accept-mission').disabled=!!m?.accepted;$('#accept-mission').textContent=m?.accepted?'✓ 已确认验收':'✓ 确认验收';
+  $('#accept-mission').hidden=!m||!!m.archivedAt||m.kind==='chat'||m.status!=='completed';
+  // 中断可恢复：明确告诉用户现在能一键继续，以及继续会发生什么。
+  const interruptedWorks=(m?.workItems||[]).filter(work=>work.protocol===2&&!work.replacedBy&&work.status==='interrupted');
+  const failedWorks=(m?.workItems||[]).filter(work=>work.protocol===2&&!work.replacedBy&&['failed','stopped'].includes(work.status));
+  const stalled=!!m&&!m.archivedAt&&m.kind!=='chat'&&(m.status==='interrupted'||interruptedWorks.length>0)&&!(m.agents||[]).some(a=>['running','queued','starting','waiting'].includes(a.status));
+  $('#resume-banner').hidden=!stalled;
+  if(stalled){
+    const parts=[];
+    if(interruptedWorks.length)parts.push(`重新排队 ${interruptedWorks.length} 项被中断的工作单`);
+    if(failedWorks.length)parts.push(`${failedWorks.length} 项未成功的工作单交给规划者判断重试或重规划`);
+    $('#resume-title').textContent=m.status==='interrupted'?'这个目标被中断了':'有工作单停在中断状态';
+    $('#resume-detail').textContent=`点继续会${parts.join('，')}；不会重放需要确认副作用的操作，历史证据与已完成的成果都保留。`;
+  }
+$('#accept-mission').disabled=!!m?.accepted;$('#accept-mission').textContent=m?.accepted?'✓ 已确认验收':'✓ 确认验收';
   $('#stop-mission').hidden=!isBusy(m);$('#stop-mission').disabled=m?.status==='stopping';$('#send-message').disabled=submitting||!connection.connected||!!m?.archivedAt;$('#message-input').disabled=!!m?.archivedAt;$('#compose-hint').textContent=m?.archivedAt?'已归档，恢复后可以继续对话':isBusy(m)?'补充要求会送入当前执行':m?.harnessVersion?'补充要求会作为所选成员的新工作单':'继续对话，保留已完成的工作';
   $('#message-input').placeholder=m?(m.kind==='chat'?'聊聊这个项目，或告诉助手要做什么…':'补充要求、调整方向，或让成员继续完善…'):project()?'输入消息，在这个项目里开始新对话…':'先添加一个项目目录…';
   $('.mission-summary h2').textContent=m?.kind==='chat'?'项目对话':m?'目标与交付':'项目目录';
@@ -343,6 +356,20 @@ $('#message-form').onsubmit=async e=>{
   catch(error){toast(error.message);}finally{submitting=false;$('#send-message').disabled=!state.connection.connected||!!mission()?.archivedAt;}
 };
 $('#message-input').addEventListener('keydown',e=>handleMessageKeydown(e,{canSend:!$('#send-message').disabled&&!!$('#message-input').value.trim(),send:()=>$('#message-form').requestSubmit()}));
+$('#resume-mission').onclick=async()=>{
+  const m=mission();if(!m)return;
+  const button=$('#resume-mission');button.disabled=true;
+  try{
+    const result=await api(`/missions/${m.id}/resume`,{});
+    const parts=[];
+    if(result.requeued?.length)parts.push(`重新排队 ${result.requeued.length} 项`);
+    if(result.revived?.length)parts.push(`恢复 ${result.revived.length} 位成员`);
+    if(result.needsPlanner?.length)parts.push(`${result.needsPlanner.length} 项交给规划者`);
+    if(result.held?.length)parts.push(`${result.held.length} 项需要你先确认副作用`);
+    toast(parts.length?`已继续：${parts.join('，')}。`:'没有需要继续的工作单。');
+  }catch(error){toast(error.message);}
+  finally{button.disabled=false;}
+};
 $('#stop-mission').onclick=async()=>{const m=mission();if(!m)return;$('#stop-mission').disabled=true;try{await api(`/missions/${m.id}/stop`,{});toast('已请求停止，文件和对话会保留。');}catch(error){toast(error.message);$('#stop-mission').disabled=false;}};
 $('#accept-mission').onclick=async()=>{try{await api(`/missions/${mission().id}/accept`,{});toast('这次交付已验收。');}catch(error){toast(error.message);}};
 $('#requests').onclick=async e=>{const option=e.target.closest('[data-answer-option]');if(option){const card=option.closest('[data-request]');[...card.querySelectorAll('[data-question-input]')].find(input=>input.dataset.questionInput===option.dataset.question).value=option.dataset.answerOption;return;}const button=e.target.closest('[data-request-action]');if(!button)return;const card=button.closest('[data-request]'),action=button.dataset.requestAction;button.disabled=true;try{const answers=Object.fromEntries([...card.querySelectorAll('[data-question-input]')].map(input=>[input.dataset.questionInput,input.value]));await api(`/missions/${mission().id}/answer`,{requestId:card.dataset.request,decision:action,answers});}catch(error){toast(error.message);button.disabled=false;}};

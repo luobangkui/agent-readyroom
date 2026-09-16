@@ -430,6 +430,46 @@ export class MissionService extends EventEmitter {
     }
     this.touch(m);return m;
   }
+  // 一键继续：服务重启、运行环境断开或用户中断留下的现场，用户点一下就恢复。
+  // 规则：被"中断"的工作单重新排队（它们从未结束，会按输入就绪重新领取，算新一代
+  // 执行）；明确失败或用户停止的工作单不静默重放，而是唤醒规划者决定重试或重规划；
+  // 超时中断（已请求过打断，可能有外部副作用）也留给规划者判断。
+  async resume(id){
+    const m=this.get(id);
+    if(m.archivedAt)throw Object.assign(new Error('这条记录已归档，请先恢复再继续。'),{status:409});
+    if(m.agents.some(a=>ACTIVE.has(a.status)||a.status==='queued'))throw Object.assign(new Error('还有成员在执行或排队，等这一轮结束后再继续。'),{status:409});
+    const requeued=[],needsPlanner=[],held=[];
+    for(const work of m.workItems||[]){
+      if(work.replacedBy||work.protocol!==2)continue;
+      const key=work.key||work.id;
+      if(work.status==='interrupted'){
+        if(work.timeoutRequestedAt||work.waitReason?.kind==='stop'){held.push(key);continue;}
+        transition(work,'waiting_input',{kind:'recovery',message:'用户请求继续：重新检查输入后就绪领取'});
+        requeued.push(key);
+      }else if(['failed','stopped'].includes(work.status))needsPlanner.push(key);
+    }
+    const revived=[];
+    for(const agent of m.agents){
+      if(agent.status!=='interrupted')continue;
+      agent.status='idle';agent.turnId=null;agent.error=null;agent.finishedAt=null;agent.summary='等待重新领取工作';
+      if(agent.workId&&!(m.workItems||[]).some(work=>work.id===agent.workId&&!work.replacedBy&&!['completed','interrupted'].includes(work.status)))agent.workId=null;
+      revived.push(agent.name);
+    }
+    const planner=this.agent(m,m.coordinatorId);
+    const wakePlanner=needsPlanner.length>0&&planner.status!=='queued'&&!ACTIVE.has(planner.status);
+    if(wakePlanner){
+      planner.status='queued';planner.coordinationOnly=!!m.harnessVersion;planner.error=null;planner.finishedAt=null;
+      planner.task=`用户请求继续这个目标。以下工作单没有成功结束：${needsPlanner.join('、')}。先调用 office_team 核对该工作单的检查点、证据与依赖，再决定必要修复、office_retry（最多两次，先核查外部副作用）或重新规划；其余工作单由程序继续调度，不要重复已完成的工作。`;
+    }else if(needsPlanner.length){
+      this.event(m,planner,`${needsPlanner.join('、')} 未成功结束，规划者当前不空闲，等它本轮结束后会接手`,'status');
+    }
+    if(m.status!=='completed'){m.status='running';m.finishedAt=null;}
+    m.lastGraphBlocker=null;m.phase=requeued.length?'executing':m.phase;
+    this.event(m,null,`用户请求继续：重新排队 ${requeued.length} 项工作单${revived.length?`，恢复 ${revived.length} 位成员`:''}${needsPlanner.length?`，${needsPlanner.length} 项未成功工作单交给规划者`:''}${held.length?`；${held.join('、')} 需要你确认副作用后再重试`:''}`,'human');
+    if(!this.save())throw Object.assign(new Error('继续操作未保存，请重试。'),{status:500});
+    this.teamChanged(m);this.schedule();
+    return {mission:m,requeued,revived,needsPlanner,held};
+  }
   async stop(id){
     const m=this.get(id);m.status='stopping';this.touch(m);
     for(const w of m.workItems||[])if(w.protocol===2&&graphPending.has(w.status)&&!graphRunning.has(w.status))transition(w,'stopped',{kind:'stop',message:'用户已停止，未自动重试'});
