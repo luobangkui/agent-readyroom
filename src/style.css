@@ -161,15 +161,32 @@ html[data-office-theme^="konoha"] body.night .scene-person-card{background:#354b
 .creation-avatar select{width:100%;min-width:0;padding:9px;border:1px solid #dce2cf;border-radius:7px;background:#f4f5eb;color:#657553;font-size:12px}
 @media(max-width:620px){.creation-cast{padding:11px}.creation-avatar-grid{gap:10px}.creation-avatar select{font-size:16px}}
 
-/* Archive controls retain the original mission entry layout. */
+/* 会话列表范围切换（当前 / 已归档 / 已移除） */
 .rail-archive-tabs{display:flex;gap:6px;margin-bottom:10px}
 .rail-archive-tabs button{flex:1;padding:7px 4px;border-radius:6px;font-size:11px;color:#778267}
 .rail-archive-tabs button[aria-pressed="true"]{background:#e9eddd;color:#3e5130;font-weight:600}
+
+/* 每行的「⋯」更多操作：重命名 + 归档/恢复（会话）或重命名 + 从列表移除（项目） */
 .mission-row{display:flex;align-items:center;gap:3px;min-width:0}
-.project-children .mission-row .mission-entry{flex:1;min-width:0;width:auto}
-.mission-archive{flex-shrink:0;padding:7px 4px;border-radius:5px;font-size:10px;color:#687858}
-.mission-archive:hover{background:#edf0e3}
-.mission-archive:disabled{opacity:.35;cursor:not-allowed}
+.project-children .mission-row .mission-entry{flex:1;min-width:0;width:auto;margin-right:2px}
+.entry-menu-button{flex-shrink:0;width:22px;height:28px;line-height:1;border-radius:6px;font-size:14px;color:#8d9a7b;letter-spacing:1px}
+.entry-menu-button:hover,.entry-menu-button[aria-expanded="true"]{background:#edf0e3;color:#5d6b50}
+.project-heading .entry-menu-button{align-self:center;margin-left:2px}
+#entry-menu{margin:0;padding:5px;border:1px solid #e2e5d4;border-radius:11px;background:#fffdf7;box-shadow:0 14px 40px #3d452c26;width:236px;z-index:60;color:#46513c}
+#entry-menu::backdrop{background:transparent}
+#entry-menu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:7px}
+#entry-menu button+button{margin-top:3px}
+#entry-menu button:hover:not(:disabled){background:#eef1e4}
+#entry-menu button:disabled{opacity:.45;cursor:not-allowed}
+#entry-menu strong{display:block;font-size:11px;font-weight:550;color:#54614a}
+#entry-menu small{display:block;font-size:9px;line-height:1.6;margin-top:3px;color:#9aa48b}
+#entry-menu button[data-menu-action^="hide-"] strong{color:#a8724b}
+.project-toggle-spacer{width:24px;min-height:36px;flex-shrink:0}
+.project-select.static{cursor:default;color:#8b957c}
+.hidden-project{opacity:.86}
+.hidden-project .project-empty{padding:2px 8px 8px;overflow-wrap:anywhere}
+#rename-form{padding:27px 30px}
+@media(max-width:620px){#entry-menu{width:min(236px,calc(100vw - 24px))}.project-children .mission-row .mission-entry{width:auto}}
 
 /* 任务图（无环 DAG）视图：拓扑分层 + 关键路径高亮，横向可滚动 */
 .collaboration-dag{border:1px solid #e0e4d2;border-radius:10px;padding:14px;margin-bottom:14px;background:#fbfbf6}
@@ -236,3 +253,6 @@ body.graph-maximized{overflow:hidden}
 /* 成员卡片上的重试入口 */
 .member-retry{margin-left:6px;padding:1px 7px;border:1px solid #e2cfa4;border-radius:6px;background:#fdf8ec;color:#8b733f;font-size:9.5px;cursor:pointer;white-space:nowrap}
 .member-retry:hover{background:#f8efd8}
+
+/* 「⋯」菜单自己的定位由 placeEntryMenu 计算，覆盖 popover 的默认居中摆放。 */
+#entry-menu{position:fixed;inset:auto;margin:0}

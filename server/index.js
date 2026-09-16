@@ -44,14 +44,16 @@ const server=http.createServer(async(req,res)=>{
       if(url.pathname==='/api/connect'){await service.reconnectRuntimes({provider:typeof data.provider==='string'?data.provider:'',force:data.force!==false});json(res,200,service.snapshot());return;}
       if(url.pathname==='/api/pick-directory'){const cwd=await pickDirectory();json(res,200,{cwd});return;}
       if(url.pathname==='/api/projects'){json(res,201,{project:await service.createProject(data)});return;}
+      const projectRoute=url.pathname.match(/^\/api\/projects\/(project_[a-f0-9-]+)\/(rename|hide|restore)$/);
+      if(projectRoute){const [,id,action]=projectRoute;const project=action==='rename'?await service.renameProject(id,data.name):await service.setProjectHidden(id,action==='hide');json(res,200,{project});return;}
       if(url.pathname==='/api/missions'){
         const key=data.clientRequestId;if(typeof key!=='string'||!/^[\w-]{8,80}$/.test(key))throw Object.assign(new Error('缺少请求标识，请刷新页面重试'),{status:400});
         let mission=service.missions.find(m=>m.clientRequestId===key);
         if(!mission){let pending=pendingCreates.get(key);if(!pending){pending=service.create(data).then(m=>{m.clientRequestId=key;service.touch(m);return m;});pendingCreates.set(key,pending);}try{mission=await pending;}finally{pendingCreates.delete(key);}}
         json(res,201,{mission});return;
       }
-      const route=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/(message|stop|answer|accept|archive|restore|resume)$/);
-      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):action==='resume'?await service.resume(id,{agentId:typeof data.agentId==='string'?data.agentId:'',retryFailed:data.retryFailed===true}):service.accept(id);json(res,200,{mission});return;}
+      const route=url.pathname.match(/^\/api\/missions\/(mission_[a-f0-9-]+)\/(message|stop|answer|accept|archive|restore|resume|rename)$/);
+      if(route){const [,id,action]=route;const mission=['archive','restore'].includes(action)?service.setArchived(id,action==='archive'):action==='message'?await service.sendMessage(id,data):action==='stop'?await service.stop(id):action==='answer'?await service.answer(id,data.requestId,data):action==='resume'?await service.resume(id,{agentId:typeof data.agentId==='string'?data.agentId:'',retryFailed:data.retryFailed===true}):action==='rename'?service.rename(id,data.title):service.accept(id);json(res,200,{mission});return;}
       json(res,404,{error:'接口不存在'});return;
     }
     if(vite){vite.middlewares(req,res);return;}

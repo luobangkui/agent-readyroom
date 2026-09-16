@@ -7,7 +7,7 @@ import {THEMES,getTheme,applyThemeUI,supportsAvatarSelection} from './themes/ind
 import {NARUTO_CAST,themePersonName} from './themes/cast.js';
 import {SceneDirector,exchangeFrom} from './scene-director.js';
 import {TEAM,teamMember} from './team.js';
-import {projectSidebar,entryStatus} from './project-sidebar.js';
+import {projectSidebar,entryStatus,entryMenuItems} from './project-sidebar.js';
 import {collaborationPanel,collaborationUsage} from './collaboration-panel.js';
 import {collaborationGraph} from './work-graph-view.js';
 import {formatMessage,localFileLink} from './document-links.js';
@@ -23,7 +23,11 @@ const modeNames={team:'协作交付',solo:'直接执行',plan:'先出方案',cha
 let scenePersonOpen=false,selectedWork='',graphMaximized=localStorage.getItem('office-graph-maximized')==='true',bootstrapInstance='',state={missions:[],connection:{},defaultCwd:''},token='',selectedId=localStorage.getItem('office-selected')||'',selectedAgent='',activeTab='messages',office,director,eventStreamConnected=true,actorMapping=new Map(),labelElements=new Map(),previousMembers='',requestSignature='',modelsSignature='',feedSignature='',lastMissionId='',submitting=false,stream,toastTimer,autoScroll=true,createRequestId=crypto.randomUUID();
 const mission=()=>state.missions.find(m=>m.id===selectedId);
 let selectedProjectId=localStorage.getItem('office-project-selected')||'',navigationInitialized=false,sidebarSignature='',pendingProjectAction='',creationKind='goal';
-let archivedView=false;
+// 左侧列表的范围：current 未归档、archived 已归档、hidden 已移除的项目。
+// 「已移除」只是从界面拿掉项目，磁盘上的目录、目标和对话一直保留。
+let listView='current',menuAnchorId='',renameTarget=null;
+// 重命名对话框里的一句说明，按对象类型区分「名字」和「目录」。
+const RENAME_HINTS={'rename-mission':'给这条对话或目标换个名字，方便在列表里认出来。','rename-project':'只改列表里的项目名，目录路径和内容都不动。'};
 const collapsedProjects=new Set(),drafts=new Map();
 const project=()=>state.projects?.find(p=>p.id===selectedProjectId);
 const draftKey=()=>selectedId||selectedProjectId;
@@ -61,7 +65,7 @@ function renderCreationAvatars(){
   $('#task-avatars').innerHTML=TEAM.map(member=>`<label class="creation-avatar"><span>${member.role==='boss'?'老板':escape(member.shortPosition)}</span><small>${escape(member.modelName)}</small><select name="avatar-${member.role}" data-role-avatar="${member.role}" aria-label="${member.role==='boss'?'老板':escape(member.shortPosition)}的替代人物">${OFFICE_AVATARS.map(item=>`<option value="${item.id}"${item.id===defaults[member.role]?' selected':''}>${escape(item.name)}</option>`).join('')}</select></label>`).join('');
 }
 async function api(route,data){const res=await fetch('/api'+route,{method:'POST',headers:{'Content-Type':'application/json','X-Office-Token':token},body:JSON.stringify(data)});const result=await res.json();if(!res.ok)throw new Error(result.error||'请求失败');return result;}
-function chooseMission(id){saveDraft();showMessages();scenePersonOpen=false;selectedId=id;archivedView=!!mission()?.archivedAt;selectedProjectId=mission()?.projectId||selectedProjectId;collapsedProjects.delete(selectedProjectId);selectedAgent=mission()?.coordinatorId||'';persistSelection();$('#message-input').value=drafts.get(draftKey())||'';previousMembers='';requestSignature='';feedSignature='';autoScroll=true;render();}
+function chooseMission(id){saveDraft();showMessages();scenePersonOpen=false;selectedId=id;listView=mission()?.archivedAt?'archived':'current';selectedProjectId=mission()?.projectId||selectedProjectId;collapsedProjects.delete(selectedProjectId);selectedAgent=mission()?.coordinatorId||'';persistSelection();$('#message-input').value=drafts.get(draftKey())||'';previousMembers='';requestSignature='';feedSignature='';autoScroll=true;render();}
 function openTask(projectId=selectedProjectId,kind='goal'){
   if(!state.projects?.length){openProject(kind);return;}
   creationKind=kind;createRequestId=crypto.randomUUID();
@@ -76,10 +80,10 @@ function openTask(projectId=selectedProjectId,kind='goal'){
 }
 function applySnapshot(snapshot){
   state=snapshot;state.projects??=[];
-  if(!navigationInitialized){if(!mission()&&!project())selectedId=state.missions.find(m=>!m.archivedAt)?.id||'';if(mission())archivedView=!!mission().archivedAt;navigationInitialized=state.projects.length>0;}
-  if(mission()&&!!mission().archivedAt!==archivedView){chooseProject(mission().projectId);return;}
+  if(!navigationInitialized){if(!mission()&&!project())selectedId=state.missions.find(m=>!m.archivedAt)?.id||'';if(mission())listView=mission().archivedAt?'archived':'current';navigationInitialized=state.projects.length>0;}
+  if(listView!=='hidden'&&mission()&&!!mission().archivedAt!==(listView==='archived')){chooseProject(mission().projectId);return;}
   if(mission())selectedProjectId=mission().projectId;else selectedId='';
-  if(!project())selectedProjectId=state.projects[0]?.id||'';
+  if(!project())selectedProjectId=state.projects.find(item=>!item.hiddenAt)?.id||state.projects[0]?.id||'';
   persistSelection();render();
 }
 function render(){
@@ -94,9 +98,18 @@ function render(){
   $('#connection-pill').className=`connection-pill ${connectedCount?'online':'error'}`;$('#connection-pill span').textContent=connectionLabel;$('#connection-pill').title=[connection.message,codex.message,zcode.message,dsh.message].filter(Boolean).join(' · ');
   $('#runtime-note').textContent=connectionLabel;
 
-  $('#mission-count').textContent=String(state.projects?.length||0).padStart(2,'0');
-  const sidebar=projectSidebar(state.projects||[],state.missions,{selectedProjectId,selectedId,collapsed:collapsedProjects,statusNames,archived:archivedView});if(sidebar!==sidebarSignature){$('#mission-list').innerHTML=sidebar;sidebarSignature=sidebar;}
-  $('#show-current').setAttribute('aria-pressed',String(!archivedView));$('#show-archived').setAttribute('aria-pressed',String(archivedView));$('#show-archived').textContent=`已归档 (${state.missions.filter(m=>m.archivedAt).length})`;
+  // 首次渲染早于 bootstrap，projects 可能还没有值；两处都按空列表处理。
+  const projects=state.projects||[];
+  const currentProjects=projects.filter(p=>!p.hiddenAt).length,hiddenProjects=projects.filter(p=>p.hiddenAt).length;
+  $('#mission-count').textContent=String(listView==='hidden'?hiddenProjects:currentProjects).padStart(2,'0');
+  const sidebar=projectSidebar(projects,state.missions||[],{selectedProjectId,selectedId,collapsed:collapsedProjects,statusNames,view:listView});
+  // 项目的名字和可见性也进签名：重命名或移除后列表要立刻重画。
+  const signature=`${listView}\u0000${selectedProjectId}\u0000${selectedId}\u0000${projects.map(p=>`${p.id}:${p.name}:${p.hiddenAt||''}`).join('|')}\u0000${sidebar}`;
+  if(signature!==sidebarSignature){$('#mission-list').innerHTML=sidebar;sidebarSignature=signature;}
+  // 列表重画会丢掉展开中的菜单；把同一个锚点重新打开，别让菜单操作到一半消失。
+  if(menuAnchorId){const anchor=document.querySelector(`[data-entry-menu="${CSS.escape(menuAnchorId)}"]`);if(anchor)openEntryMenu(anchor);else closeEntryMenu();}
+  $('#show-current').setAttribute('aria-pressed',String(listView==='current'));$('#show-archived').setAttribute('aria-pressed',String(listView==='archived'));$('#show-hidden').setAttribute('aria-pressed',String(listView==='hidden'));
+  $('#show-archived').textContent=`已归档 (${state.missions.filter(m=>m.archivedAt).length})`;$('#show-hidden').textContent=`已移除 (${hiddenProjects})`;
   // The graph tab is the entry point for task-graph collaboration: it carries
   // the live work-item count and says plainly when a session has no graph yet.
   const graphWorks=m?(m.workItems||[]).filter(w=>w.protocol===2&&!w.replacedBy):[];
@@ -308,14 +321,99 @@ $('#project-form').onsubmit=async e=>{e.preventDefault();const button=$('#create
 $('#task-cwd').readOnly=true;$('#choose-cwd').hidden=true;
 $('#task-project').onchange=()=>{$('#task-cwd').value=state.projects.find(p=>p.id===$('#task-project').value)?.cwd||'';};
 $('#close-dialog').onclick=()=>$('#task-dialog').close();$('#task-dialog').addEventListener('click',event=>{if(event.target===$('#task-dialog')){const r=$('#task-dialog').getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)$('#task-dialog').close();}});
-$('#show-current').onclick=()=>{archivedView=false;chooseProject(selectedProjectId);};
-$('#show-archived').onclick=()=>{archivedView=true;chooseProject(selectedProjectId);};
-$('#mission-list').onclick=async e=>{
-  const button=e.target.closest('button');if(!button)return;
-  if(button.dataset.archive||button.dataset.restore){
-    const id=button.dataset.archive||button.dataset.restore,action=button.dataset.archive?'archive':'restore';button.disabled=true;
-    try{const {mission:m}=await api(`/missions/${id}/${action}`,{});state.missions=state.missions.map(entry=>entry.id===id?m:entry);if(selectedId===id)chooseProject(m.projectId);else render();toast(action==='archive'?'已归档，可在「已归档」中查看和恢复。':'已恢复到当前列表。');}catch(error){toast(error.message);button.disabled=false;}return;
+$('#show-current').onclick=()=>switchView('current');
+$('#show-archived').onclick=()=>switchView('archived');
+$('#show-hidden').onclick=()=>switchView('hidden');
+// 一个共享 popover 承载所有行的「⋯」菜单：按钮只带 id，内容按当前数据即时生成。
+function openEntryMenu(anchor){
+  const menu=$('#entry-menu'),project=state.projects.find(p=>p.id===anchor.dataset.entryMenu),entry=project?{...project,entries:state.missions.filter(m=>m.projectId===project.id&&!m.archivedAt)}:state.missions.find(m=>m.id===anchor.dataset.entryMenu);
+  if(!entry)return;
+  const items=entryMenuItems(entry,{archived:listView==='archived',hidden:listView==='hidden'});
+  if(!items.length){closeEntryMenu();return;}
+  menu.replaceChildren(...items.map(item=>{
+    const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.dataset.menuAction=item.action;button.dataset.menuEntry=entry.id;button.disabled=!!item.disabled;
+    const label=document.createElement('strong');label.textContent=item.label;button.append(label);
+    if(item.hint){const hint=document.createElement('small');hint.textContent=item.hint;button.append(hint);}
+    return button;
+  }));
+  menuAnchorId=anchor.dataset.entryMenu;
+  if(!menu.matches(':popover-open'))menu.showPopover();
+  placeEntryMenu(menu,anchor);
+}
+// 菜单贴在「⋯」按钮旁边，并在视口边缘内翻转、收敛：靠近顶部的行也能看全菜单。
+function placeEntryMenu(menu,anchor){
+  const box=anchor.getBoundingClientRect(),size=menu.getBoundingClientRect();
+  const gap=6,width=size.width||236,height=size.height||120;
+  const below=box.bottom+gap,top=below+height<=innerHeight-8?below:Math.max(8,box.top-gap-height);
+  const left=Math.max(8,Math.min(box.right-width,innerWidth-width-8));
+  menu.style.cssText=`position:fixed;inset:auto;margin:0;z-index:60;top:${top}px;left:${left}px;`;
+}
+function closeEntryMenu(){menuAnchorId='';const menu=$('#entry-menu');if(menu.matches(':popover-open'))menu.hidePopover();}
+function switchView(view){
+  if(listView===view)return;
+  listView=view;const claimed=view==='archived'?'archived':'current';
+  if(mission()&&listView!=='hidden'&&(!!mission().archivedAt?'archived':'current')!==claimed){chooseProject(mission().projectId);return;}
+  if(mission()&&listView==='hidden'){chooseProject(selectedProjectId);return;}
+  render();
+}
+async function renameEntry(target,value){
+  const button=$('#submit-rename'),project=target.kind==='project';
+  button.disabled=true;$('#rename-error').textContent='';
+  try{
+    const result=project?await api(`/projects/${target.id}/rename`,{name:value}):await api(`/missions/${target.id}/rename`,{title:value});
+    if(project)state.projects=state.projects.map(p=>p.id===result.project.id?result.project:p);else state.missions=state.missions.map(m=>m.id===result.mission.id?result.mission:m);
+    $('#rename-dialog').close();render();toast(project?'项目已重命名，目录没有变动。':'已重命名。');
+  }catch(error){$('#rename-error').textContent=error.message;}
+  finally{button.disabled=false;}
+}
+async function runMenuAction(action,id){
+  closeEntryMenu();
+  if(action==='rename-mission'||action==='rename-project'){
+    const project=action==='rename-project',entry=project?state.projects.find(p=>p.id===id):state.missions.find(m=>m.id===id);
+    if(!entry)return;
+    renameTarget={kind:project?'project':'mission',id,previous:entry.name||entry.title};
+    $('#rename-eyebrow').textContent=project?'RENAME PROJECT':'RENAME';
+    $('#rename-title').textContent=project?'重命名项目':'重命名';
+    $('#rename-hint').textContent=RENAME_HINTS[action]||'';
+    // 只有项目允许留空（回到目录名），会话名必须非空——服务端也会再挡一次。
+    $('#rename-note').hidden=!project;$('#rename-note').textContent=`项目留空 = 回到目录名（${entry.cwd?.split('/').pop()||''}）`;
+    $('#rename-input').placeholder=project?'留空回到目录名':'输入新的名称';
+    $('#rename-input').value=renameTarget.previous;
+    $('#rename-error').textContent='';$('#rename-dialog').showModal();
+    $('#rename-input').select();
+    return;
   }
+  if(action==='hide-project'||action==='restore-project'){
+    const hiding=action==='hide-project',entry=state.projects.find(p=>p.id===id);
+    try{
+      const {project}=await api(`/projects/${id}/${hiding?'hide':'restore'}`,{});
+      state.projects=state.projects.map(p=>p.id===project.id?project:p);
+      if(selectedProjectId===project.id&&hiding)chooseProject(state.projects.find(p=>!p.hiddenAt)?.id||'');
+      render();
+      toast(hiding?`「${project.name}」已从列表移除，目录和对话都还在；在「已移除」里可以放回。`:`「${project.name}」已放回列表。`);
+    }catch(error){toast(error.message);}
+    return;
+  }
+  if(action==='archive'||action==='restore'){
+    try{const {mission:m}=await api(`/missions/${id}/${action}`,{});state.missions=state.missions.map(entry=>entry.id===id?m:entry);if(selectedId===id)chooseProject(m.projectId);else render();toast(action==='archive'?'已归档，可在「已归档」中查看和恢复。':'已恢复到当前列表。');}catch(error){toast(error.message);}
+  }
+}
+$('#entry-menu').onclick=event=>{const item=event.target.closest('[data-menu-action]');if(item&&!item.disabled)void runMenuAction(item.dataset.menuAction,item.dataset.menuEntry);};
+// popover 会在 light dismiss（点到别处、Esc）时自己关闭，这里只同步锚点状态。
+$('#entry-menu').addEventListener('toggle',event=>{if(event.newState==='closed')menuAnchorId='';});
+$('#close-rename-dialog').onclick=()=>$('#rename-dialog').close();
+$('#rename-dialog').addEventListener('click',event=>{if(event.target===$('#rename-dialog'))$('#rename-dialog').close();});
+// 对话框用 novalidate：留空对项目是合法输入（回到目录名），对会话则在这里说清楚。
+$('#rename-form').onsubmit=event=>{
+  event.preventDefault();if(!renameTarget)return;
+  const value=$('#rename-input').value;
+  if(renameTarget.kind==='mission'&&!value.trim()){$('#rename-error').textContent='会话名称不能为空。';$('#rename-input').focus();return;}
+  void renameEntry(renameTarget,value);
+};
+$('#mission-list').onclick=async e=>{
+  const menuButton=e.target.closest('[data-entry-menu]');
+  if(menuButton){e.stopPropagation();if(menuAnchorId===menuButton.dataset.entryMenu)closeEntryMenu();else openEntryMenu(menuButton);return;}
+  const button=e.target.closest('button');if(!button)return;
   if(button.dataset.mission)chooseMission(button.dataset.mission);
   else if(button.dataset.project)chooseProject(button.dataset.project);
   else if(button.dataset.toggleProject){const id=button.dataset.toggleProject;if(collapsedProjects.has(id))collapsedProjects.delete(id);else collapsedProjects.add(id);render();}

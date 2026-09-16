@@ -10,7 +10,7 @@
     <div class="scene-hud-right"><div class="scene-playback" hidden><span id="scene-playback-badge"></span></div></div>
   </div>
   <main class="workbench">
-    <nav id="workspace-missions" class="mission-rail" aria-label="项目与会话"><div class="rail-title"><span>我的项目</span><span id="mission-count">00</span></div><button id="new-project" class="rail-new">＋ 添加项目目录</button><div class="rail-quick-actions"><button id="new-mission">◎ 新建目标</button><button id="new-chat">◌ 新建对话</button></div><div class="rail-archive-tabs" role="group" aria-label="会话列表范围"><button id="show-current" aria-pressed="true">当前</button><button id="show-archived" aria-pressed="false">已归档</button></div><div id="mission-list"></div><div class="rail-footer"><div class="runtime-label"><span>✳</span><div>本机运行环境<small id="runtime-note">正在检查登录状态</small></div></div><button id="reconnect" class="text-button" title="重建本机 Codex / ZCode / DSH 连接；切换账号或运行环境掉线后使用">重建本地连接</button><a href="/models.html" target="_blank" class="demo-link">查看人物模型 ↗</a><a href="/demo.html" target="_blank" class="demo-link">查看纯场景演示 ↗</a></div></nav>
+    <nav id="workspace-missions" class="mission-rail" aria-label="项目与会话"><div class="rail-title"><span>我的项目</span><span id="mission-count">00</span></div><button id="new-project" class="rail-new">＋ 添加项目目录</button><div class="rail-quick-actions"><button id="new-mission">◎ 新建目标</button><button id="new-chat">◌ 新建对话</button></div><div class="rail-archive-tabs" role="group" aria-label="会话列表范围"><button id="show-current" aria-pressed="true">当前</button><button id="show-archived" aria-pressed="false">已归档</button><button id="show-hidden" aria-pressed="false" title="从列表移除的项目：只隐藏，不删除；点开可以放回">已移除</button></div><div id="mission-list"></div><div class="rail-footer"><div class="runtime-label"><span>✳</span><div>本机运行环境<small id="runtime-note">正在检查登录状态</small></div></div><button id="reconnect" class="text-button" title="重建本机 Codex / ZCode / DSH 连接；切换账号或运行环境掉线后使用">重建本地连接</button><a href="/models.html" target="_blank" class="demo-link">查看人物模型 ↗</a><a href="/demo.html" target="_blank" class="demo-link">查看纯场景演示 ↗</a></div></nav>
     <div class="main-column">
       <section class="scene-panel" aria-label="真实任务的 3D 待命室"><div class="scene-title"><span class="eyebrow">YOUR TEAM, AT WORK</span><h1 id="scene-title">好想法，今天就开始。</h1></div><div id="viewport"><div id="loading">正在打开待命室…</div></div><div id="labels"></div></section>
       <section id="workspace-conversation" class="work-panel"><div class="work-panel-header">
@@ -43,6 +43,14 @@
   <label class="field">项目名称 <small>可选，默认使用文件夹名</small><input id="project-name" maxlength="100" placeholder="例如：待命室"/></label>
   <p id="project-error" class="form-error" role="alert"></p>
   <div class="dialog-footer"><span>文件保留在所选目录中</span><button id="create-project" type="submit" class="button primary">创建项目</button></div>
+</form></dialog>
+<menu id="entry-menu" popover="auto" aria-label="更多操作"></menu>
+<dialog id="rename-dialog" aria-labelledby="rename-title"><form id="rename-form" novalidate>
+  <div class="dialog-header"><div><span class="eyebrow" id="rename-eyebrow">RENAME</span><h2 id="rename-title">重命名</h2></div><button type="button" id="close-rename-dialog" class="close-button" aria-label="关闭重命名">×</button></div>
+  <p id="rename-hint" class="project-intro"></p>
+  <label class="field">名称 <small id="rename-note">项目留空 = 回到目录名</small><input id="rename-input" maxlength="60" autocomplete="off" placeholder="输入新的名称"/></label>
+  <p id="rename-error" class="form-error" role="alert"></p>
+  <div class="dialog-footer"><span id="rename-scope">只改列表里的名字，目录与对话内容都不动</span><button id="submit-rename" type="submit" class="button primary">保存名称</button></div>
 </form></dialog>
 <div id="toast" role="status"></div>
 <script type="module" src="/src/main.js"></script>

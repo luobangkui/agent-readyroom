@@ -8,7 +8,7 @@ import {ProjectStore} from '../server/projects.js';
 import {MissionService} from '../server/missions.js';
 import {TEAM} from '../src/team.js';
 import {instructions} from '../server/prompts.js';
-import {projectSidebar} from '../src/project-sidebar.js';
+import {projectSidebar,entryMenuItems} from '../src/project-sidebar.js';
 
 class Bridge extends EventEmitter {
   constructor(){super();this.calls=[];this.seq=0;}
@@ -146,9 +146,58 @@ test('archiving releases capacity while restoring enforces the active entry limi
   service.setArchived(fresh.id,true);service.setArchived(archived.id,false);assert.equal(archived.archivedAt,null);
 });
 
-test('sidebar filters archives and provides escaped accessible archive/restore actions',()=>{
+test('sidebar filters archives and exposes per-row menus for rename and archive/restore',()=>{
   const projects=[{id:'p',name:'项目',cwd:'/work'}],missions=[{id:'a',projectId:'p',kind:'goal',status:'completed',title:'<旧目标>',archivedAt:'2026-09-14'},{id:'b',projectId:'p',kind:'chat',status:'idle',title:'新对话'},{id:'c',projectId:'p',status:'running',title:'执行中'}],options={collapsed:new Set(),statusNames:{}};
-  const current=projectSidebar(projects,missions,options),archived=projectSidebar(projects,missions,{...options,archived:true});
-  assert.ok(!current.includes('data-mission="a"'));assert.match(current,/data-archive="b"/);assert.match(current,/data-archive="c"[^>]+disabled/);
-  assert.match(archived,/data-mission="a"/);assert.ok(!archived.includes('data-mission="b"'));assert.match(archived,/data-restore="a"/);assert.match(archived,/恢复 &lt;旧目标&gt;/);assert.match(archived,/已归档/);
+  const current=projectSidebar(projects,missions,options),archived=projectSidebar(projects,missions,{...options,view:'archived'});
+  assert.ok(!current.includes('data-mission="a"'));assert.match(current,/data-entry-menu="p"/);assert.match(current,/data-entry-menu="b"/);assert.match(current,/data-entry-menu="c"/);
+  assert.ok(!current.includes('data-archive='));assert.match(archived,/data-mission="a"/);assert.match(archived,/data-entry-menu="a"/);assert.ok(!archived.includes('data-mission="b"'));assert.match(archived,/已归档/);
+  // 菜单内容由 entryMenuItems 提供：运行中的会话不能归档，但一直可以重命名。
+  assert.deepEqual(entryMenuItems({id:'c',status:'running'}).map(i=>i.action),['rename-mission','archive']);
+  assert.equal(entryMenuItems({id:'c',status:'running'})[1].disabled,true);
+  assert.equal(entryMenuItems({id:'b',status:'idle'})[1].disabled,false);
+  assert.deepEqual(entryMenuItems({id:'a',status:'completed',archivedAt:'x'},{archived:true}).map(i=>i.action),['rename-mission','restore']);
+  assert.deepEqual(entryMenuItems({id:'project_1',entries:[1,2]}).map(i=>i.action),['rename-project','hide-project']);
+  assert.deepEqual(entryMenuItems({id:'project_1',hiddenAt:'x',entries:[1]},{hidden:true}).map(i=>i.action),['restore-project']);
+});
+
+test('hidden projects leave the list with their entries but stay recoverable',async t=>{
+  const {service,directory,cwd}=fixture(t),p=await service.createProject({cwd,name:'待命室'}),chat=await service.create({projectId:p.id,kind:'chat'}),other=await service.createProject({cwd:path.join(cwd,'..','other'),name:'别的'});
+  await service.setProjectHidden(p.id,true);
+  const hidden=projectSidebar(service.snapshot().projects,service.snapshot().missions,{view:'current',collapsed:new Set(),statusNames:{}});
+  assert.ok(!hidden.includes('待命室'));assert.ok(hidden.includes('别的'));
+  const listing=projectSidebar(service.snapshot().projects,service.snapshot().missions,{view:'hidden',collapsed:new Set(),statusNames:{}});
+  assert.match(listing,/待命室/);assert.match(listing,new RegExp(`data-entry-menu="${p.id}"`));assert.ok(!listing.includes('别的'));
+  // 隐藏不删数据：目录、对话与消息都还在磁盘上，放回后照旧。
+  assert.equal(service.get(chat.id).messages.length,0);assert.equal(realpathSync(cwd),cwd);
+  await service.setProjectHidden(p.id,false);
+  assert.equal(service.projects.get(p.id).hiddenAt,null);assert.equal(new ProjectStore(directory).get(p.id).hiddenAt,null);
+  const back=projectSidebar(service.snapshot().projects,service.snapshot().missions,{view:'current',collapsed:new Set(),statusNames:{}});
+  assert.match(back,/待命室/);assert.match(back,/data-mission=/);assert.notEqual(other.id,p.id);
+});
+
+test('renaming a project or a mission changes only the label and survives reload',async t=>{
+  const {service,directory,cwd}=fixture(t),p=await service.createProject({cwd,name:'旧名字'}),goal=await service.create({projectId:p.id,prompt:'检查项目'});
+  await service.renameProject(p.id,'新名字');
+  assert.equal(service.projects.get(p.id).name,'新名字');
+  await service.renameProject(p.id,'  ');assert.equal(service.projects.get(p.id).name,path.basename(cwd));
+  await service.renameProject(p.id,'保留名');
+  await assert.rejects(service.renameProject(p.id,'x'.repeat(101)),error=>error.status===400);
+  const renamed=service.rename(goal.id,'我的第一次目标');
+  assert.equal(renamed.title,'我的第一次目标');assert.equal(renamed.prompt,'检查项目');assert.equal(renamed.customTitle,true);
+  assert.throws(()=>service.rename(goal.id,'   '),error=>error.status===400);
+  service.save();
+  const restarted=new MissionService(new Bridge(),{directory,defaultCwd:cwd});
+  t.after(()=>{clearTimeout(restarted.saveTimer);clearTimeout(restarted.broadcastTimer);});
+  assert.equal(restarted.get(goal.id).title,'我的第一次目标');assert.equal(restarted.projects.get(p.id).name,'保留名');
+});
+
+test('a manual mission name is not overwritten by the first chat message',async t=>{
+  const {service,cwd}=fixture(t),p=await service.createProject({cwd}),chat=await service.create({projectId:p.id,kind:'chat'});
+  service.rename(chat.id,'季度复盘');
+  service.connection.connected=true;
+  await service.sendMessage(chat.id,{text:'帮我看看这个项目的启动流程'});await tick();
+  assert.equal(chat.title,'季度复盘');assert.equal(chat.prompt,'帮我看看这个项目的启动流程');
+  const auto=await service.create({projectId:p.id,kind:'chat'});
+  await service.sendMessage(auto.id,{text:'自动命名的对话'});await tick();
+  assert.equal(auto.title,'自动命名的对话');
 });

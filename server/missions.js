@@ -90,6 +90,14 @@ export class MissionService extends EventEmitter {
   }
   snapshot(){return {instanceId:this.instanceId,capabilities:{missionArchive:true,creationAvatars:true,scopedCollaboration:true,localFilePreview:true,inputReadyHarness:true},connection:this.connection,team:TEAM,defaultCwd:this.defaultCwd,projects:this.projects.projects,missions:this.missions.map(({baseline,artifactVersions,...m})=>({...m,...(m.harnessVersion?{harnessMetrics:harnessMetrics(m),artifactVersions:(artifactVersions||[]).map(({files,...v})=>({...v,files:files.map(({content,...f})=>f)}))}:{})})),serverTime:now()};}
   async createProject(data){const project=await this.projects.create(data);this.touch();return project;}
+  // 项目重命名与「移除」都只动 projects.json 里的标签字段：目录内容、目标、对话、
+  // 消息与工作单全部保留。隐藏（移除）只是把项目从列表视图里拿掉，可以随时恢复。
+  async renameProject(id,name){const project=await this.projects.rename(id,name);this.touch();return project;}
+  async setProjectHidden(id,hidden){
+    if(hidden)await this.projects.setHidden(id,true);
+    else await this.projects.setHidden(id,false,{activeMissions:this.missions.filter(entry=>!entry.archivedAt).length});
+    this.touch();return this.projects.get(id);
+  }
   touch(m){if(m)m.updatedAt=now();if(!this.broadcastTimer)this.broadcastTimer=setTimeout(()=>{this.broadcastTimer=null;this.emit('change');},70);if(!this.saveTimer)this.saveTimer=setTimeout(()=>{this.saveTimer=null;this.save();},300);}
   save(){try{const temp=this.file+'.tmp';writeFileSync(temp,JSON.stringify(this.missions),{mode:0o600});renameSync(temp,this.file);return true;}catch(error){this.connection.message=`记录保存失败：${error.message}`;this.emit('change');return false;}}
   get(id){const m=this.missions.find(m=>m.id===id);if(!m)throw Object.assign(new Error('任务不存在'),{status:404});return m;}
@@ -102,6 +110,15 @@ export class MissionService extends EventEmitter {
     m.archivedAt=archived?now():null;
     if(!this.save()){if(previous===undefined)delete m.archivedAt;else m.archivedAt=previous;throw Object.assign(new Error('归档状态保存失败，请重试。'),{status:500});}
     this.touch();return m;
+  }
+  // 重命名只改列表标签：提示词、消息、工作单、产物与线程名都不动。手动命名后
+  // customTitle 会拦住 sendMessage 的自动标题，避免起的名字被第一条消息覆盖。
+  rename(id,value){
+    const title=inputText(value,'名称',60),m=this.get(id),previous=m.title,previousCustom=m.customTitle;
+    if(previous===title)return m;
+    m.title=title;m.customTitle=true;
+    if(!this.save()){m.title=previous;if(previousCustom===undefined)delete m.customTitle;else m.customTitle=previousCustom;throw Object.assign(new Error('名称保存失败，请重试。'),{status:500});}
+    this.touch(m);return m;
   }
   locate(threadId){for(const m of this.missions){const a=m.agents.find(a=>a.threadId===threadId);if(a)return [m,a];}return [];}
   agent(m,id){const a=m.agents.find(a=>a.id===id);if(!a)throw new Error('该成员不属于当前任务');return a;}
@@ -437,7 +454,7 @@ export class MissionService extends EventEmitter {
     if(ACTIVE.has(a.status)&&!a.turnId)throw Object.assign(new Error('成员正在初始化，请稍后补充。'),{status:409});
     if(m.kind==='chat'&&!m.prompt){
       await projectDirectory(m.cwd);m.baseline=await scanWorkspace(m.cwd);
-      m.prompt=text;m.title=clip(text.split(/[\n。！？]/)[0],60);
+      m.prompt=text;if(!m.customTitle)m.title=clip(text.split(/[\n。！？]/)[0],60);
     }
     if(a.turnId){await this.bridge.request('turn/steer',{threadId:a.threadId,expectedTurnId:a.turnId,input:[{type:'text',text}]});this.message(m,'human',text,'user',{to:a.id});this.event(m,a,'已收到你的补充要求');}
     else{
