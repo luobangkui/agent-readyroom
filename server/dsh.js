@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {homedir,tmpdir} from 'node:os';
 import path from 'node:path';
+import {firstExisting,spawnCli} from './cli.js';
 
 export const DSH_PREFIX='dsh:';
 export const DSH_PROVIDER='deepseek-official';
@@ -35,12 +36,12 @@ const describeError=error=>{
   return detail&&!String(message).includes(detail)?`${message}：${detail}`:String(message);
 };
 
-// The DSH CLI is usually installed by Homebrew; a launchd-managed service can
+// The DeepSeek Harness CLI is usually installed by Homebrew on macOS; on
+// Windows it lands on PATH as dsh.exe/dsh.cmd. A launchd-managed service can
 // carry a PATH that does not include it, so resolve a real binary up front and
 // fall back to a plain PATH lookup when no known location exists.
-export function resolveDshBinary(candidates=[process.env.OFFICE_DSH_BIN,'/opt/homebrew/bin/dsh','/usr/local/bin/dsh','/usr/bin/dsh']){
-  const named=candidates.filter(Boolean);
-  return named.find(candidate=>existsSync(candidate))||process.env.OFFICE_DSH_BIN||'dsh';
+export function resolveDshBinary(candidates=[process.env.OFFICE_DSH_BIN,'/opt/homebrew/bin/dsh','/usr/local/bin/dsh','/usr/bin/dsh',path.join(homedir(),'.dsh','bin','dsh')]){
+  return firstExisting(candidates)||process.env.OFFICE_DSH_BIN||'dsh';
 }
 
 export const dshHome=()=>(process.env.DSH_HOME||'').trim()||path.join(homedir(),'.dsh');
@@ -120,7 +121,7 @@ export class DshBridge extends EventEmitter {
     const args=['--profile',this.profile,...this.patchArguments()];
     const env={...process.env};if(this.permissionMode)env.DSH_PERMISSION_MODE=this.permissionMode;
     if(path.isAbsolute(this.binary)&&!existsSync(this.binary))throw new Error(`未找到 DSH 运行程序（${this.binary}），可设置 OFFICE_DSH_BIN 指向本机 dsh。`);
-    const child=this.spawnProcess(this.binary,args,{cwd:this.cwd,stdio:['pipe','pipe','pipe'],env});this.child=child;this.stderr='';
+    const child=spawnCli(this.spawnProcess,this.binary,args,{cwd:this.cwd,stdio:['pipe','pipe','pipe'],env});this.child=child;this.stderr='';
     const disconnected=message=>{
       if(this.child!==child)return;
       this.ready=false;this.child=null;

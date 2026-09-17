@@ -2,7 +2,7 @@
 
 > 一间跑在本机的 3D 待命室：四个固定岗位的 AI 成员坐在同一间屋子里干活。规划者把目标拆成**无环任务图**，程序按输入就绪**并行派发**，产出必须留下**可复现证据**，再由另一位成员**独立复核**。
 
-**English** — Readyroom is a local, single-machine 3D workbench where a fixed four-role AI crew (plan / contract / build / verify) shares one room, turns a goal into an acyclic task graph, and works it in parallel under scope locks, staged contracts, independent review and evidence gates. It drives Codex, ZCode and DeepSeek Harness (DSH), one runtime per role. UI, prompts and docs are in Chinese.
+**English** — Readyroom is a local, single-machine 3D workbench where a fixed four-role AI crew (plan / contract / build / verify) shares one room, turns a goal into an acyclic task graph, and works it in parallel under scope locks, staged contracts, independent review and evidence gates. It drives Codex, ZCode, DeepSeek Harness (DSH) and Kimi Code CLI, one runtime per role. UI, prompts and docs are in Chinese.
 
 ![Readyroom 工作台：木叶庭院主题下的四个工位](docs/images/readyroom-workbench.jpg)
 
@@ -15,14 +15,14 @@
 - **阶段契约**：`office_publish` snapshots 一个带 SHA-256 的不可变版本，`office_validate` 要求非作者独立验证；消费者按 `name:version` 消费快照，接口就绪即可开工，不必等作者整轮结束。
 - **证据与独立复核**：每份工作单用 `office_report` 逐条对应验收条件提交检查证据；写入成果必须由另一位成员只读复核，作者不能自审，改动会让旧复核失效。
 - **关键路径优先的派发**：候选排序 = 优先级 + 下游最长链 + 续接奖励 + 等待时长；一轮调度把就绪工作同时派给所有空闲且岗位匹配的成员。
-- **三个运行环境，按岗位选模型**：Codex、ZCode、DSH（DeepSeek Harness）可混用，创建目标时为每个岗位单独指定。
+- **四个运行环境，按岗位选模型**：Codex、ZCode、DSH（DeepSeek Harness）、Kimi 可混用，创建目标时为每个岗位单独指定。
 - **3D 场景就是状态**：人物走动、落座、交流、气泡都来自真实事件；暂停动画不影响模型任务。
 - **列表可整理，磁盘不动**：会话和项目右侧的「⋯」菜单支持重命名、归档，以及把项目**从列表移除**（只隐藏，不删除）；左侧「已移除」一栏随时放回。
 - **全部本机**：只监听 `127.0.0.1`，校验 Host/Origin 与会话令牌；数据落在 `.office-data/`（不入 Git），模型凭证始终由各运行环境自己管理。
 
 ## 快速开始
 
-需要 **Node ≥ 20**（实测 v24），macOS 或 Linux。
+需要 **Node ≥ 20**（实测 v24），macOS、Windows 或 Linux。
 
 ```bash
 npm install
@@ -39,6 +39,7 @@ npm start            # → http://127.0.0.1:4317/
 | **Codex** | 本机 Codex 登录（`npx codex login`）；项目自带 `@openai/codex 0.153.4`，不动全局 | 文件、命令、网络，四个岗位通用 |
 | **ZCode** | ZCode 中已配置 GLM 提供方 | 同上 |
 | **DSH**（DeepSeek Harness） | 本机 `dsh` 可用并已登录 | 同上；默认工作区可写、敏感操作弹出授权卡 |
+| **Kimi** | 项目自带 `@moonshot-ai/kimi-code`（`kimi acp`，跨平台）；终端跑一次 `kimi login`，或配置 `~/.kimi-code/config.toml` / `KIMI_MODEL_*` 环境变量；也可用 `OFFICE_KIMI_BIN` 指定本机 kimi | 同上；敏感操作弹出授权卡，只读目标走 ACP plan 模式 |
 
 模型目录来自各运行环境的实时列表，界面里按 `运行环境` 分组显示，不会静默替换你选的模型。
 
@@ -91,7 +92,7 @@ npm start            # → http://127.0.0.1:4317/
 
 ## 数据、隐私与边界
 
-- 服务仅监听回环地址，校验 Host/Origin 与写入令牌；模型凭证由 Codex / ZCode / DSH 各自管理，不写入本项目。
+- 服务仅监听回环地址，校验 Host/Origin 与写入令牌；模型凭证由 Codex / ZCode / DSH / Kimi 各自管理，不写入本项目。
 - 目标与对话数据在 `.office-data/missions.json`、项目目录在 `.office-data/projects.json`，已加入 `.gitignore`。
 - 文档预览只允许当前项目内的非敏感普通文件：拒绝越界路径、隐藏配置、密钥文件、外部符号链接；HTML 走净化内容与禁脚本沙箱，不自动加载外部资源；文本预览上限 512 KB，下载上限 50 MB。
 - 范围锁与资源预约是**调度层约定**，不是操作系统级沙箱；请按岗位合同与你自己的审批判断风险。
@@ -108,7 +109,8 @@ server/
   work-state.js       状态迁移与等待计时
   prompts.js          岗位合同与 office_* 工具 schema
   roster.js / projects.js / documents.js / artifacts.js
-  codex.js / zcode.js / zcode-config.js / dsh.js    三个运行环境桥接
+  codex.js / zcode.js / zcode-config.js / dsh.js / kimi.js    四个运行环境桥接
+  cli.js              跨平台 CLI 解析与启动（.cmd 垫片、.exe、PATH 探测）
   office-mcp.mjs      以 stdio MCP 暴露协作工具（每会话独立令牌）
 src/
   main.js             工作台界面与实时渲染
@@ -125,12 +127,19 @@ scripts/              模型导入、场景构建与自检脚本
 ## 测试与自检
 
 ```bash
-npm test                              # 调度、协作、任务图、桥接、预览等 245 项
+npm test                              # 调度、协作、任务图、桥接、预览等 283 项
 npm run build                         # 生成 dist/ 静态前端
 node scripts/check-collaboration-graph.mjs   # 真实调度器跑通「提交图 → 拆分 → 并行 → 回调 → 汇总」，输出 DAG 预览
 node scripts/check-dsh-acp.mjs               # 真实 dsh 的 ACP 握手、模型目录与 MCP 挂载（含一次极小模型轮次）
+node scripts/check-kimi-acp.mjs              # 真实 kimi 的 ACP 握手、模型目录与 MCP 挂载（需先 kimi login）
 node scripts/preview-harness.mjs             # 只读夹具：用真实调度器渲染工作计划页
 ```
+
+## Windows 说明
+
+- 服务、调度器、四个运行环境桥接均为跨平台实现：范围路径统一 POSIX 形态落库，CLI 子进程自动处理 Windows 的 `.cmd` 垫片与 `.exe` 解析。
+- 目录选择在 Windows 上走 PowerShell 文件夹对话框；原生常驻服务脚本（`scripts/restart-service.mjs`、`docs/tech/local-service.md`）的 launchd 部分仅适用 macOS，Windows 直接重启进程即可。
+- 未开启开发者模式的 Windows 不能创建文件符号链接；涉及符号链接的少数测试会自动跳过，不影响功能。
 
 ## 文档
 

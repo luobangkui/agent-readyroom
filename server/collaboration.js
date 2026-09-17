@@ -18,7 +18,9 @@ export function scopePath(cwd,value){
   if(path.isAbsolute(relative)||/[\0*?\[\]{}\\]/.test(relative))fail('范围请使用项目相对文件或目录路径，不支持绝对路径、通配符或反斜杠。');
   const root=canonical(cwd),file=canonical(path.resolve(root,relative));
   if(file!==root&&!file.startsWith(root+path.sep))fail('范围路径不能越出项目目录（包括符号链接）。');
-  return path.relative(root,file)||'.';
+  // 范围一律存 POSIX 形态：调度器与界面的包含/重叠判断以 '/' 为准，
+  // Windows 的 path.relative 会返回反斜杠，必须在落库前统一。
+  return path.relative(root,file).split(path.sep).join('/')||'.';
 }
 export function normalizeScope(m,value,canWrite=true){
   if(value===undefined)return {readPaths:['.'],writePaths:canWrite&&m.mode!=='plan'?['.']:[]};
@@ -43,7 +45,7 @@ export function effectiveScope(m,a){
 // the reader to guess why two parallel-looking tasks are queued.
 export function scopeOverlap(cwdA,scopeA,cwdB,scopeB){
   const abs=(cwd,paths)=>paths.map(p=>canonical(path.resolve(cwd,p)));
-  const relative=(cwd,p)=>path.relative(canonical(cwd),p)||'.';
+  const relative=(cwd,p)=>path.relative(canonical(cwd),p).split(path.sep).join('/')||'.';
   const ar=abs(cwdA,scopeA.readPaths),aw=abs(cwdA,scopeA.writePaths),br=abs(cwdB,scopeB.readPaths),bw=abs(cwdB,scopeB.writePaths),pairs=[];
   const collect=(xs,ys,side)=>{for(const x of xs)for(const y of ys)if(overlaps(x,y))pairs.push({path:relative(cwdA,x),other:relative(cwdB,y),side});};
   collect(aw,[...br,...bw],'write');

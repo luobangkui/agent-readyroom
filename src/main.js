@@ -89,13 +89,13 @@ function applySnapshot(snapshot){
 function render(){
   const m=mission(),connection=state.connection;
   const providers=connection.providers||{};
-  const codex=providers.codex||{connected:connection.connected,authenticated:connection.authenticated};
-  const zcode=providers.zcode||{};
-  const dsh=providers.dsh||{};
-  const runtimeNames=[[codex,'Codex'],[zcode,'ZCode'],[dsh,'DSH']].filter(([provider])=>provider.connected&&provider.authenticated).map(([,name])=>name);
-  const connectedCount=runtimeNames.length;
-  const connectionLabel=connectedCount===3?'Codex · ZCode · DSH 已连接':connectedCount?`${runtimeNames.join(' · ')} 已连接`:'等待本机运行环境连接';
-  $('#connection-pill').className=`connection-pill ${connectedCount?'online':'error'}`;$('#connection-pill span').textContent=connectionLabel;$('#connection-pill').title=[connection.message,codex.message,zcode.message,dsh.message].filter(Boolean).join(' · ');
+  // 运行环境列表与展示名同源：新增运行环境只改 PROVIDER_ORDER 一处。
+  const online=PROVIDER_ORDER.filter(name=>providers[name]?.connected&&providers[name]?.authenticated);
+  // 老快照里没有 providers 字段时退回整体连接状态（按 Codex 处理）。
+  if(!connection.providers&&connection.connected&&connection.authenticated)online.push('codex');
+  const connectedCount=online.length;
+  const connectionLabel=connectedCount===PROVIDER_ORDER.length?`${PROVIDER_ORDER.map(name=>PROVIDER_NAMES[name]).join(' · ')} 已连接`:connectedCount?`${online.map(name=>PROVIDER_NAMES[name]||name).join(' · ')} 已连接`:'等待本机运行环境连接';
+  $('#connection-pill').className=`connection-pill ${connectedCount?'online':'error'}`;$('#connection-pill span').textContent=connectionLabel;$('#connection-pill').title=[connection.message,...PROVIDER_ORDER.map(name=>providers[name]?.message)].filter(Boolean).join(' · ');
   $('#runtime-note').textContent=connectionLabel;
 
   // 首次渲染早于 bootstrap，projects 可能还没有值；两处都按空列表处理。
@@ -159,10 +159,12 @@ function renderModels(){
   renderRoleModels(models);
   renderEfforts();
 }
-const PROVIDER_GROUPS={codex:'Codex 云端',zcode:'ZCode',dsh:'DSH · DeepSeek Harness'};
+const PROVIDER_GROUPS={codex:'Codex 云端',zcode:'ZCode',dsh:'DSH · DeepSeek Harness',kimi:'Kimi'};
+const PROVIDER_ORDER=['codex','zcode','dsh','kimi'];
+const PROVIDER_NAMES={codex:'Codex',zcode:'ZCode',dsh:'DSH',kimi:'Kimi'};
 const roleModelPrefs=()=>{try{const saved=JSON.parse(localStorage.getItem('office-role-models')||'{}');return saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};}catch{return {};}};
 function modelOptions(models,current){
-  return ['codex','zcode','dsh'].map(provider=>{
+  return PROVIDER_ORDER.map(provider=>{
     const group=models.filter(m=>(m.provider||'codex')===provider);if(!group.length)return '';
     return `<optgroup label="${PROVIDER_GROUPS[provider]}">${group.map(m=>`<option value="${escape(m.id)}"${m.id===current?' selected':''}>${escape(m.name)}</option>`).join('')}</optgroup>`;
   }).join('');
@@ -498,7 +500,7 @@ $('#reconnect').onclick=async()=>{
     applySnapshot(snapshot);
     const providers=snapshot.connection.providers||{};
     const offline=Object.entries(providers).filter(([,status])=>!status.connected||!status.authenticated).map(([name])=>name);
-    toast(offline.length?`已重建本地连接；${offline.join('、')} 仍未就绪：${offline.map(name=>providers[name].message).join('；')}`:'本地运行环境已全部重建：Codex · ZCode · DSH。');
+    toast(offline.length?`已重建本地连接；${offline.join('、')} 仍未就绪：${offline.map(name=>providers[name].message).join('；')}`:`本地运行环境已全部重建：${PROVIDER_ORDER.map(name=>PROVIDER_NAMES[name]).join(' · ')}。`);
   }catch(error){toast(error.message);}
   finally{button.disabled=false;}
 };

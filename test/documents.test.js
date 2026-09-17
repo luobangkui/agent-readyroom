@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {readDocument,documentPath,TEXT_PREVIEW_LIMIT,FILE_DOWNLOAD_LIMIT} from '../server/documents.js';
 import {parseLocalTarget,formatMessage,documentHref,localFileLink} from '../src/document-links.js';
+import {trySymlinkSync} from './fs-util.js';
 
 function fixture(t){const root=mkdtempSync(path.join(tmpdir(),'office-doc-test-')),cwd=path.join(root,'project');mkdirSync(cwd);t.after(()=>rmSync(root,{recursive:true,force:true}));return {root,cwd,m:{id:'mission_1234abcd',cwd}};}
 test('local document targets support spaces, Unicode, parentheses, URI encoding and line numbers',()=>{
@@ -38,8 +39,9 @@ test('project documents are read without modifying them and raw content is a sep
 });
 test('preview refuses traversal, hidden secrets, out-of-project symlinks, folders and special targets',async t=>{
   const {root,cwd,m}=fixture(t);writeFileSync(path.join(root,'outside.txt'),'not accessible');writeFileSync(path.join(cwd,'.env'),'test-only');writeFileSync(path.join(cwd,'credential.json'),'test-only');
-  symlinkSync(path.join(root,'outside.txt'),path.join(cwd,'alias.txt'));symlinkSync(path.join(cwd,'.env'),path.join(cwd,'hidden-alias.txt'));mkdirSync(path.join(cwd,'docs'));
-  for(const file of ['../outside.txt',path.join(root,'outside.txt'),'.env','credential.json','alias.txt','hidden-alias.txt'])await assert.rejects(readDocument(m,file),error=>error.status===403);
+  const linked=trySymlinkSync(path.join(root,'outside.txt'),path.join(cwd,'alias.txt'))&&trySymlinkSync(path.join(cwd,'.env'),path.join(cwd,'hidden-alias.txt'));
+  mkdirSync(path.join(cwd,'docs'));
+  for(const file of ['../outside.txt',path.join(root,'outside.txt'),'.env','credential.json',...(linked?['alias.txt','hidden-alias.txt']:[])])await assert.rejects(readDocument(m,file),error=>error.status===403);
   await assert.rejects(readDocument(m,'docs'),error=>error.status===400);await assert.rejects(readDocument(m,'missing.md'),error=>error.status===404);
   for(const invalid of ['',null,'a\0b','file:///etc/passwd'])await assert.rejects(documentPath(m,invalid),error=>error.status===400);
 });

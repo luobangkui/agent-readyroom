@@ -10,7 +10,10 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status});}
 const inside=(root,file)=>file.startsWith(root+path.sep);
 function sensitive(relative){return relative.split(path.sep).some(part=>part.startsWith('.')||/^(?:id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|(?:auth|token|credentials|secrets)(?:\.[^.]+)?)$/i.test(part)||/(?:secret|credential|password|private[-_.]?key|auth[-_.]?token)/i.test(part)||/\.(?:env|pem|key|p12|pfx|jks|keystore)$/i.test(part));}
 export async function documentPath(mission,requested){
-  if(typeof requested!=='string'||!requested.trim()||requested.length>4000||/[\x00-\x1f\\]/.test(requested)||/^[a-z][a-z\d+.-]*:\/\//i.test(requested))fail(400,'请提供有效的本地文件路径。');
+  if(typeof requested!=='string'||!requested.trim()||requested.length>4000||/[\x00-\x1f]/.test(requested)||/^[a-z][a-z\d+.-]*:\/\//i.test(requested))fail(400,'请提供有效的本地文件路径。');
+  // 相对路径一律 POSIX 形态（与 scopePath 一致）；本机绝对路径按平台原样
+  // 解析，Windows 上的反斜杠绝对路径不再被误拒。
+  if(!path.isAbsolute(requested)&&/\\/.test(requested))fail(400,'请提供有效的本地文件路径。');
   let root;try{root=await realpath(mission.cwd);}catch{fail(404,'项目目录已不可用。');}
   const candidate=path.resolve(root,requested.trim());
   // macOS /tmp and /var commonly resolve through /private; compare canonical
@@ -20,7 +23,7 @@ export async function documentPath(mission,requested){
   if(!inside(root,canonicalCandidate)||sensitive(path.relative(root,canonicalCandidate)))fail(403,'仅能预览本目标项目内的非敏感文件，隐藏配置和密钥不开放。');
   let actual;try{actual=await realpath(candidate);}catch{fail(404,'文件不存在，可能已被移动或尚未生成。');}
   if(!inside(root,actual)||sensitive(path.relative(root,actual)))fail(403,'文件或符号链接不在允许的预览范围内。');
-  return {absolutePath:actual,path:path.relative(root,actual),name:path.basename(actual)};
+  return {absolutePath:actual,path:path.relative(root,actual).split(path.sep).join('/'),name:path.basename(actual)};
 }
 async function readBounded(handle,count){
   const buffer=Buffer.alloc(count);let offset=0;

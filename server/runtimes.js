@@ -1,14 +1,15 @@
 import {EventEmitter} from 'node:events';
 import {ZCODE_PREFIX} from './zcode.js';
 import {DSH_PREFIX} from './dsh.js';
+import {KIMI_PREFIX} from './kimi.js';
 
-const loginHints={codex:'请先登录 Codex',zcode:'请先登录 ZCode',dsh:'本机 DSH 未就绪，就绪后自动连接'};
+const loginHints={codex:'请先登录 Codex',zcode:'请先登录 ZCode',dsh:'本机 DSH 未就绪，就绪后自动连接',kimi:'请先在终端运行 kimi login 完成登录'};
 const loginHint=name=>loginHints[name]||`请先登录 ${name}`;
-const clientRequestPrefixes={dsh:'dreq_',zcode:'zreq_'};
+const clientRequestPrefixes={dsh:'dreq_',zcode:'zreq_',kimi:'kreq_'};
 
 export class OfficeRuntimes extends EventEmitter {
-  constructor({codex,zcode,dsh}={}){
-    super();this.backends={codex,zcode,dsh};this.providers={};this.pollTimers=[];
+  constructor({codex,zcode,dsh,kimi}={}){
+    super();this.backends={codex,zcode,dsh,kimi};this.providers={};this.pollTimers=[];
     for(const [provider,bridge] of Object.entries(this.backends)){
       if(!bridge)continue;
       bridge.on('notification',msg=>this.emit('notification',msg));bridge.on('request',msg=>this.emit('request',msg));
@@ -54,6 +55,8 @@ export class OfficeRuntimes extends EventEmitter {
     if(params.provider==='zcode')return 'zcode';
     if(params.provider==='codex')return 'codex';
     if(params.provider==='dsh')return 'dsh';
+    if(params.provider==='kimi')return 'kimi';
+    if(params.threadId?.startsWith(KIMI_PREFIX)||/^(k2d8|k3-agent|kimi[-.])/i.test(params.model||''))return 'kimi';
     if(params.threadId?.startsWith(DSH_PREFIX)||/^deepseek[-.]/i.test(params.model||''))return 'dsh';
     return params.threadId?.startsWith(ZCODE_PREFIX)||/^glm-/i.test(params.model||'')?'zcode':'codex';
   }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {mkdtempSync,mkdirSync,rmSync,writeFileSync,symlinkSync,readFileSync,realpathSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,rmSync,writeFileSync,readFileSync,realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {ProjectStore} from '../server/projects.js';
@@ -9,6 +9,7 @@ import {MissionService} from '../server/missions.js';
 import {TEAM} from '../src/team.js';
 import {instructions} from '../server/prompts.js';
 import {projectSidebar,entryMenuItems} from '../src/project-sidebar.js';
+import {trySymlinkDirSync} from './fs-util.js';
 
 class Bridge extends EventEmitter {
   constructor(){super();this.calls=[];this.seq=0;}
@@ -27,7 +28,8 @@ function completed(service,m,text){const a=m.agents.find(x=>x.id===m.coordinator
 
 test('projects deduplicate canonical directories, survive reload, and never invoke models',async t=>{
   const {service,bridge,cwd,root,directory}=fixture(t);service.connection.connected=false;
-  const p=await service.createProject({cwd,name:'我的项目'});symlinkSync(cwd,path.join(root,'alias'));
+  const p=await service.createProject({cwd,name:'我的项目'});
+  if(!trySymlinkDirSync(cwd,path.join(root,'alias'))){t.skip('当前 Windows 环境不允许创建目录链接');return;}
   const same=await service.createProject({cwd:path.join(root,'alias'),name:'另一个名称'});
   assert.equal(same.id,p.id);assert.equal(same.name,'我的项目');assert.equal(service.snapshot().projects.length,1);assert.equal(bridge.calls.length,0);
   assert.deepEqual(new ProjectStore(directory).projects,[p]);

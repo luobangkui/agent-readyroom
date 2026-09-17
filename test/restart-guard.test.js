@@ -55,6 +55,7 @@ test('the restart helper waits for every runtime and warns about the ones still 
 test('the restart helper never signals the real service label during tests',async t=>{
   const port=await fixture(t,[]);
   const result=await call(port);
-  assert.match(result.stdout,/launchctl kill 未成功/,'测试里用的是不存在的 label');
+  // macOS 上走 launchctl（测试用的是不存在的 label）；其他平台直接跳过服务信号。
+  assert.match(result.stdout,process.platform==='darwin'?/launchctl kill 未成功/:/没有 launchd 常驻服务/,'测试里用的是不存在的 label');
   assert.ok(!/tech\.dp\.readyroom|local\.readyroom$/m.test(result.stdout));
 });

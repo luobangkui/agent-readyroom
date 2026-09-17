@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {mkdtempSync,mkdirSync,symlinkSync,rmSync,readFileSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {MissionService} from '../server/missions.js';
@@ -11,6 +11,7 @@ import {sharedTools,bossTools} from '../server/prompts.js';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {collaborationPanel} from '../src/collaboration-panel.js';
+import {trySymlinkDirSync} from './fs-util.js';
 
 class Bridge extends EventEmitter {
   constructor(){super();this.calls=[];this.seq=0;this.failSteer=false;}
@@ -50,7 +51,8 @@ test('readers can share the project and overlapping reader/writer work is serial
 });
 
 test('directory prefixes, parent projects, traversal and symbolic links are handled conservatively',async t=>{
-  const f=await fixture(t);mkdirSync(path.join(f.cwd,'src'));symlinkSync(path.join(f.cwd,'src'),path.join(f.cwd,'alias'));symlinkSync(f.directory,path.join(f.cwd,'outside'));
+  const f=await fixture(t);mkdirSync(path.join(f.cwd,'src'));
+  if(!trySymlinkDirSync(path.join(f.cwd,'src'),path.join(f.cwd,'alias'))||!trySymlinkDirSync(f.directory,path.join(f.cwd,'outside'))){t.skip('当前 Windows 环境不允许创建符号链接或 junction');return;}
   assert.deepEqual(normalizeScope(f.m,scope(['alias'],['new/file.js'])),scope(['src'],['new/file.js']));
   for(const p of ['../escape','outside/file','/absolute','src/**'])assert.throws(()=>normalizeScope(f.m,scope([], [p])),error=>error.status===400);
   assert.equal(scopesConflict(f.cwd,scope([],['src']),f.cwd,scope(['src2'])),false);

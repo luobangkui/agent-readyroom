@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
 
-const preload=fileURLToPath(new URL('../scripts/service-lifecycle.mjs',import.meta.url));
+// --import 在 Windows 上不接受裸盘符路径，统一传 file:// URL。
+const preload=new URL('../scripts/service-lifecycle.mjs',import.meta.url).href;
 const run=code=>spawnSync(process.execPath,['--unhandled-rejections=strict','--import',preload,'--eval',code],{encoding:'utf8',timeout:5000});
 const records=output=>output.split('\n').filter(line=>line.startsWith('{')).map(line=>JSON.parse(line));
 test('service lifecycle logs startup and normal exit without running a model',()=>{
@@ -15,6 +15,8 @@ test('service lifecycle observes fatal errors but does not swallow them',()=>{
 test('service lifecycle keeps unhandled rejection fatal for launchd recovery',()=>{
   const result=run('Promise.reject(new Error("fixture-rejection"))');assert.equal(result.status,1);assert.ok(records(result.stderr).some(e=>e.event==='fatal'&&e.origin==='unhandledRejection'));
 });
-test('service lifecycle preserves application signal handling',()=>{
+// Windows 不支持 POSIX 信号语义：process.kill(自身, 'SIGTERM') 在 libuv 里
+// 直接 TerminateProcess，信号处理器不会运行，此语义测试仅在类 Unix 上有意义。
+test('service lifecycle preserves application signal handling',{skip:process.platform==='win32'},()=>{
   const result=run('process.on("SIGTERM",()=>process.exit(0)); setInterval(()=>{},1000); process.kill(process.pid,"SIGTERM")');assert.equal(result.status,0);assert.deepEqual(records(result.stdout).map(e=>e.event),['start','signal','exit']);
 });

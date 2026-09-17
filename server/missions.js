@@ -73,7 +73,7 @@ export class MissionService extends EventEmitter {
       else if(typeof this.bridge.ensureConnected==='function')await this.bridge.ensureConnected();
       else await this.bridge.start();
       const [account,catalog]=await Promise.all([this.bridge.request('account/read',{}),this.bridge.request('model/list',{includeHidden:false})]);
-      this.connection={connected:!!account.account,authenticated:!!account.account,authType:account.account?.type||null,providers:account.providers,models:catalog.data.map(m=>({id:m.model,name:m.displayName,provider:m.provider||'codex',efforts:m.supportedReasoningEfforts.map(e=>e.reasoningEffort)})),message:account.account?'已连接本机运行环境':'请先连接 Codex、ZCode 或 DSH'};
+      this.connection={connected:!!account.account,authenticated:!!account.account,authType:account.account?.type||null,providers:account.providers,models:catalog.data.map(m=>({id:m.model,name:m.displayName,provider:m.provider||'codex',efforts:m.supportedReasoningEfforts.map(e=>e.reasoningEffort)})),message:account.account?'已连接本机运行环境':'请先连接 Codex、ZCode、DSH 或 Kimi'};
     }catch(error){this.connection={...this.connection,connected:false,message:error.message};}
     this.touch();return this.connection;
   }
@@ -323,10 +323,10 @@ export class MissionService extends EventEmitter {
       // and review. The plan mode remains an explicit read-only exception.
       const fullAccess=a.fullAccess===true&&m.mode!=='plan';
       const [officeMcp]=this.memberMcp(m,a);
-      // ZCode and DSH take the office tools as protocol-level MCP declarations,
-      // not as Codex config rows; DSH additionally needs its harness execution
-      // flag so a failed graph turn keeps its execution slot.
-      const acpProvider=a.provider==='zcode'||a.provider==='dsh';
+      // ZCode、DSH 与 Kimi 把待命室工具作为协议级 MCP 声明传入，
+      // 而不是 Codex 的配置行；DSH/ZCode 另外需要 harness 执行标记，
+      // 让失败的任务图轮次保住执行席位。
+      const acpProvider=a.provider==='zcode'||a.provider==='dsh'||a.provider==='kimi';
       // A loaded Codex resume retains its MCP environment; graph generations
       // use fresh sessions. Unloaded legacy sessions get current MCP schemas.
       const config={cwd:m.cwd,model:a.model,sandbox:fullAccess?'danger-full-access':a.write?'workspace-write':'read-only',approvalPolicy:fullAccess?'never':'on-request',...(fullAccess?{}:{approvalsReviewer:'user'}),developerInstructions:instructions(m,a),config:{'features.multi_agent':false,...(acpProvider?{}:{'mcp_servers.office':{command:officeMcp.command,args:officeMcp.args,env:Object.fromEntries(officeMcp.env.map(v=>[v.name,v.value])),required:true}})},...(acpProvider?{officeMcpServers:[officeMcp],officeEffort:a.effort,officeYolo:m.mode!=='plan',officeHarnessExecution:workFor(m,a)?.protocol===2}:{})};

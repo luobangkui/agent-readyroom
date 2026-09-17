@@ -1,8 +1,8 @@
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
 import {EventEmitter} from 'node:events';
-import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
+import {firstExisting,spawnCli} from './cli.js';
 
 const projectCodex=fileURLToPath(new URL('../node_modules/.bin/codex',import.meta.url));
 const AUTH_FAILURE=/access token|authentication|authenticated|unauthori[sz]ed|logged out|sign in again|login required|not logged in/i;
@@ -10,7 +10,9 @@ const AUTH_FAILURE=/access token|authentication|authenticated|unauthori[sz]ed|lo
 export function isAuthenticationFailure(value){return AUTH_FAILURE.test(String(value??''));}
 
 export class CodexBridge extends EventEmitter {
-  constructor({binary=process.env.OFFICE_CODEX_BIN || (existsSync(projectCodex)?projectCodex:'codex'),cwd=process.cwd(),webSearch=process.env.OFFICE_CODEX_WEB_SEARCH||'live',spawnProcess=spawn}={}) {
+  // Windows 上 .bin/codex 是无扩展名脚本，真正可执行的是 codex.cmd；
+  // firstExisting 会按平台选对变体，spawnCli 负责 .cmd 的 shell 包装。
+  constructor({binary=process.env.OFFICE_CODEX_BIN||firstExisting([projectCodex])||'codex',cwd=process.cwd(),webSearch=process.env.OFFICE_CODEX_WEB_SEARCH||'live',spawnProcess=spawn}={}) {
     super();this.binary=binary;this.cwd=cwd;this.webSearch=webSearch;this.spawnProcess=spawnProcess;this.pending=new Map();this.sequence=0;this.ready=false;this.child=null;this.starting=null;
   }
   start(){
@@ -37,7 +39,7 @@ export class CodexBridge extends EventEmitter {
     }catch(error){return {connected:this.ready,authenticated:false,message:`Codex 状态查询失败：${error.message}`};}
   }
   async connect(){
-    const child=this.spawnProcess(this.binary,['app-server','--stdio','-c',`web_search=\"${this.webSearch}\"`],{cwd:this.cwd,stdio:['pipe','pipe','pipe'],env:{...process.env,RUST_LOG:'error'}});this.child=child;
+    const child=spawnCli(this.spawnProcess,this.binary,['app-server','--stdio','-c',`web_search=\"${this.webSearch}\"`],{cwd:this.cwd,stdio:['pipe','pipe','pipe'],env:{...process.env,RUST_LOG:'error'}});this.child=child;
     const rejectAll=(error,{kill=false,authFailed=false}={})=>{
       if(this.child!==child)return;
       this.ready=false;this.child=null;
