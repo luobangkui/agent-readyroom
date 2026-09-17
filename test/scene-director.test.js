@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Vector3} from 'three';
-import {WORKSTATIONS,WORK_ISLAND,LEISURE,OVERFLOW_HOMES,FURNITURE,extraHome} from '../src/room-layout.js';
+import {BoxGeometry,Group,Mesh,Vector3} from 'three';
+import {ROOM,WORKSTATIONS,WORK_ISLAND,LEISURE,OVERFLOW_HOMES,FURNITURE,extraHome} from '../src/room-layout.js';
 import {SceneDirector,activityFor,findRoute,clearSegment,walkable,exchangeFrom,CHAIR_OBSTACLES,AMBIENT_CADENCE} from '../src/scene-director.js';
 
 const agent=(id,role,status='running')=>({id,role,status,threadId:`thread-${id}`,phase:'executing',dependsOn:[]});
@@ -29,6 +29,66 @@ test('dynamic peer footprints force a detour instead of crossing a person',()=>{
   assert.equal(clearSegment(from,to,peer),false);
   const route=findRoute(from,to,peer);assert.ok(route.length);
   let previous=from;for(const step of route){assert.ok(clearSegment(previous,step,peer));previous=step;}
+});
+
+test('two oncoming walkers yield and both reach their destinations',()=>{
+  for(const goals of [[{x:1.2,z:3.25},{x:-1.2,z:3.25}],[{x:2.5,z:3.25},{x:-2.5,z:3.25}]])for(const reversed of [false,true]){
+    const starts=[{x:-2.5,z:3.25},{x:2.5,z:3.25}];
+    const actors=Object.fromEntries(starts.map((p,i)=>[`p${i}`,{home:new Vector3(p.x,0,p.z),root:{position:new Vector3(p.x,0,p.z)},mode:'idle'}]));
+    const director=new SceneDirector({actors},()=>{},{ambient:{firstDelay:1000}}),order=reversed?[1,0]:[0,1];
+    director.sync({id:'head-on',status:'running',agents:order.map(i=>agent(`a${i}`,'builder')),messages:[],events:[],requests:[]},new Map(order.map(i=>[`p${i}`,`a${i}`])));
+    for(const i of order)director.setDestination(director.record(`a${i}`),goals[i]);
+    for(let frame=0;frame<20*60;frame++){
+      director.update(1/60);
+      const a=actors.p0.root.position,b=actors.p1.root.position;
+      assert.ok(Math.max(Math.abs(a.x-b.x),Math.abs(a.z-b.z))>=.96-1e-6,'walkers entered each other’s reserved footprint');
+    }
+    for(const i of order){const p=actors[`p${i}`].root.position,r=director.record(`a${i}`);
+      assert.ok(Math.hypot(p.x-goals[i].x,p.z-goals[i].z)<.05,JSON.stringify({reversed,actor:i,position:p.toArray(),destination:r.destination,blockedSince:r.blockedSince}));
+      assert.equal(r.destination,null);
+    }
+  }
+});
+
+test('a stationary coworker is not pushed aside by an unreachable destination',()=>{
+  const actors={moving:{home:new Vector3(-2.5,0,3.25),root:{position:new Vector3(-2.5,0,3.25)}},standing:{home:new Vector3(1.2,0,3.25),root:{position:new Vector3(1.2,0,3.25)}}};
+  const director=new SceneDirector({actors},()=>{},{ambient:{firstDelay:1000}});
+  director.sync({id:'occupied',status:'running',agents:[agent('a','builder'),agent('b','builder')],messages:[],events:[],requests:[]},new Map([['moving','a'],['standing','b']]));
+  director.setDestination(director.record('a'),actors.standing.home);
+  advance(director,12);
+  assert.equal(director.record('b').yielding,null);
+  assert.ok(actors.standing.root.position.equals(actors.standing.home));
+  assert.ok(director.record('a').destination,'occupied goal must stay pending');
+});
+
+test('larger walking bodies can take turns without clipping a peer or the room edge',()=>{
+  const starts=[-2.7,2.7],goals=[1.2,-1.2],actors={};
+  starts.forEach((x,i)=>{const root=new Group(),body=new Mesh(new BoxGeometry(.8,1,.8));root.add(body);root.position.set(x,0,2.2);actors[`p${i}`]={home:root.position.clone(),root,body};});
+  const director=new SceneDirector({actors},()=>{},{ambient:{firstDelay:1000}});
+  director.sync({id:'large-walkers',status:'running',agents:[agent('a0','builder'),agent('a1','builder')],messages:[],events:[],requests:[]},new Map([['p0','a0'],['p1','a1']]));
+  starts.forEach((_,i)=>director.setDestination(director.record(`a${i}`),{x:goals[i],z:2.2}));
+  for(let frame=0;frame<20*60;frame++){
+    director.update(1/60);
+    const a=actors.p0.root.position,b=actors.p1.root.position;
+    assert.ok(Math.max(Math.abs(a.x-b.x),Math.abs(a.z-b.z))>=1.37-1e-6,'larger bodies intersected');
+    for(const p of [a,b])assert.ok(p.z<=ROOM.maxZ-.4&&p.z>=ROOM.minZ+.4,JSON.stringify({position:p.toArray(),yielding:director.record(p===a?'a0':'a1').yielding,route:director.record(p===a?'a0':'a1').route}));
+  }
+  for(let i=0;i<2;i++){const r=director.record(`a${i}`);assert.ok(Math.abs(actors[`p${i}`].root.position.x-goals[i])<.05,JSON.stringify({actor:i,positions:Object.values(actors).map(a=>a.root.position.toArray()),destination:r.destination,route:r.route,yielding:r.yielding,blockedSince:r.blockedSince}));}
+});
+
+test('an ambient return is not treated as complete at a temporary yielding spot',()=>{
+  const starts=[-2.5,2.5],homes=[1.2,-1.2],actors={};
+  homes.forEach((x,i)=>{actors[`p${i}`]={home:new Vector3(x,0,3.25),root:{position:new Vector3(x,0,3.25)}};});
+  const director=new SceneDirector({actors},()=>{},{ambient:{firstDelay:1000}});
+  director.sync({id:'returns',status:'stopped',agents:[agent('a0','builder','stopped'),agent('a1','builder','stopped')],messages:[],events:[],requests:[]},new Map([['p0','a0'],['p1','a1']]));
+  starts.forEach((x,i)=>{actors[`p${i}`].root.position.set(x,0,3.25);const r=director.record(`a${i}`);r.ambient={activity:{mode:'gazing'},phase:'returning'};r.destination={x:homes[i],z:3.25};r.route=[r.destination];});
+  let parked=false,yielded=false;
+  for(let frame=0;frame<20*60;frame++){
+    director.update(1/60);
+    const r=director.record('a1');if(r.yielding){yielded=true;assert.equal(r.ambient?.phase,'returning');}if(r.yielding&&!r.route.length&&!r.destination)parked=true;
+  }
+  assert.ok(parked,JSON.stringify({yielded,positions:Object.values(actors).map(a=>a.root.position.toArray()),records:[director.record('a0'),director.record('a1')].map(r=>({route:r.route,destination:r.destination,blockedSince:r.blockedSince,ambient:r.ambient}))}));
+  for(let i=0;i<2;i++){assert.ok(actors[`p${i}`].root.position.distanceTo(actors[`p${i}`].home)<.05);assert.equal(director.record(`a${i}`).ambient,null);}
 });
 
 test('facing workstations keep routes outside the shared bench, glass and storage',()=>{assert.equal(WORKSTATIONS[0].facing,0);assert.equal(WORKSTATIONS[1].facing,Math.PI);assert.equal(WORKSTATIONS[2].facing,0);assert.equal(WORKSTATIONS[3].facing,Math.PI);assert.equal(walkable(WORK_ISLAND),false);assert.equal(walkable(FURNITURE.partition),false);assert.equal(walkable(FURNITURE.storage),false);});
@@ -96,5 +156,4 @@ test('without any messages people stroll, sip coffee and return, with no agent c
 test('real work takes priority over coffee and sends the person back to work',()=>{const {director,office,bindings}=fixture(),m=mission();m.status='stopped';m.agents.forEach(a=>a.status='stopped');director.sync(m,bindings);advance(director,8);assert.ok(director.record('worker-id').ambient);const working=structuredClone(m);working.status='running';working.agents.forEach(a=>a.status='running');director.sync(working,bindings);assert.equal(director.record('worker-id').ambient,null);advance(director,15);assert.equal(office.actors.employee.mode,'working');assert.ok(office.actors.employee.root.position.distanceTo(office.actors.employee.home)<.001);});
 
 test('pausing freezes an ambient walk and its current pose',()=>{const {director,office,bindings}=fixture(),m=mission();m.status='stopped';director.sync(m,bindings);advance(director,2);const r=director.record('boss-id');assert.ok(r.ambient);director.setEnabled(false);const point=office.actors.boss.root.position.clone(),mode=office.actors.boss.mode,clock=director.clock;advance(director,10);assert.ok(office.actors.boss.root.position.equals(point));assert.equal(office.actors.boss.mode,mode);assert.equal(director.clock,clock);});
-
 

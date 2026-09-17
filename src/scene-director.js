@@ -1,6 +1,6 @@
 // Visual choreography reads real mission snapshots. It never starts or changes a Codex task.
 import {ROOM,WORKSTATIONS,WORK_ISLAND,FURNITURE,LEISURE} from './room-layout.js';
-import {actorEnvelope,occupiedBy} from './actor-clearance.js';
+import {actorEnvelope,occupiedBy,PERSON_GAP} from './actor-clearance.js';
 const rectangle=(point,width,depth,padding=.2)=>{const c=Math.abs(Math.cos(point.rotation||0)),s=Math.abs(Math.sin(point.rotation||0)),x=(width*c+depth*s)/2+padding,z=(width*s+depth*c)/2+padding;return [point.x-x,point.x+x,point.z-z,point.z+z];};
 export const OBSTACLES=[
   rectangle(WORK_ISLAND,WORK_ISLAND.width,WORK_ISLAND.depth),
@@ -91,9 +91,9 @@ export class SceneDirector {
     if(fresh){this.clear();this.records.clear();this.seen=new Set((mission.messages||[]).map(m=>m.id));}
     const attached=new Set(bindings.values());for(const [id,record] of this.records)if(!attached.has(id)){if(this.current&&[this.current.mover,this.current.host].includes(record))this.clear();this.records.delete(id);}
     for(const [key,id] of bindings){const agent=mission.agents.find(a=>a.id===id),actor=this.office.actors[key];if(!agent||!actor)continue;let record=this.records.get(id);
-      if(!record){const index=this.records.size;record={id,key,actor,agent,base:null,route:[],lastPath:[],relaxedNavigation:false,destination:null,routeRetryAt:0,blockedSince:null,bubble:'',bubbleUntil:0,celebrateUntil:0,ambient:null,ambientCount:index,seed:seedFor(id),desk:null,nextAmbientAt:this.clock+this.ambientTiming.firstDelay+index*this.ambientTiming.stagger};this.records.set(id,record);actor.root.position.copy(actor.home);actor.targetRotation=actor.homeRotation??(key==='boss'?0:Math.PI);}
+      if(!record){const index=this.records.size;record={id,key,actor,agent,base:null,route:[],lastPath:[],relaxedNavigation:false,destination:null,routeRetryAt:0,trafficRetryAt:0,blockedSince:null,yielding:null,bubble:'',bubbleUntil:0,celebrateUntil:0,ambient:null,ambientCount:index,seed:seedFor(id),desk:null,nextAmbientAt:this.clock+this.ambientTiming.firstDelay+index*this.ambientTiming.stagger};this.records.set(id,record);actor.root.position.copy(actor.home);actor.targetRotation=actor.homeRotation??(key==='boss'?0:Math.PI);}
       const previous=record.agent.status;record.agent=agent;record.base=activityFor(agent,mission,connected);actor.setRole?.(agent.role);
-      if(record.ambient&&!this.canRelax(record)){record.ambient=null;if(['waiting','blocked'].includes(record.base.mode)){record.route=[];record.destination=null;}else this.setDestination(record,actor.home);}
+      if(record.ambient&&!this.canRelax(record)){record.ambient=null;record.yielding=null;if(['waiting','blocked'].includes(record.base.mode)){record.route=[];record.destination=null;}else this.setDestination(record,actor.home);}
       if(!fresh&&previous!=='completed'&&agent.status==='completed'&&connected&&!['stopped','interrupted'].includes(mission.status)){record.celebrateUntil=this.clock+2.2;record.nextAmbientAt=this.clock+this.ambientTiming.interval;}
     }
     if(!connected||(!this.replaying&&['stopped','stopping','interrupted'].includes(mission.status)))this.clear(false);
@@ -136,8 +136,8 @@ export class SceneDirector {
     })];
   }
   peerObstacles(exclude){const radius=actorEnvelope(exclude.actor).radius;return [...this.records.values()].filter(record=>record!==exclude&&record.actor.root.visible!==false).map(record=>occupiedBy(record.actor,radius));}
-  routeFor(record,start,end){
-    const peers=this.peerObstacles(record),furniture=this.furnitureObstacles(record),obstacles=[...peers,...furniture];
+  routeFor(record,start,end,peers=this.peerObstacles(record)){
+    const furniture=this.furnitureObstacles(record),obstacles=[...peers,...furniture];
     const access=point=>{
       if(walkable(point,obstacles))return [{point,link:[]}];
       const touching=furniture.filter(box=>blocked(point,[box])),remaining=[...peers,...furniture.filter(box=>!touching.includes(box))];
@@ -165,6 +165,7 @@ export class SceneDirector {
     return fallback;
   }
   setDestination(record,point,plannedRoute){
+    if(record.yielding&&distance(point,record.yielding.stage)>.01)record.yielding=null;
     if(distance(record.actor.root.position,point)<.04){record.route=[];record.destination=null;record.blockedSince=null;return;}
     if(!record.destination||distance(record.destination,point)>.01)record.blockedSince=null;
     const destination={x:point.x,z:point.z};
@@ -181,12 +182,13 @@ export class SceneDirector {
     if(route.length&&distance(point,record.actor.home)>=.05)record.lastPath=[{x:record.actor.root.position.x,z:record.actor.root.position.z},...route.map(p=>({x:p.x,z:p.z}))];
     if(record.route.length)record.blockedSince=null;else record.blockedSince??=this.clock;
   }
-  clear(ambient=true){this.queue=[];this.current=null;this.replaying=false;for(const r of this.records.values()){if(ambient||!r.ambient){r.route=[];r.destination=null;r.blockedSince=null;}if(ambient)r.ambient=null;r.bubble='';r.bubbleUntil=0;r.celebrateUntil=0;}this.office.clearExchanges?.();}
+  clear(ambient=true){this.queue=[];this.current=null;this.replaying=false;for(const r of this.records.values()){if(ambient||!r.ambient){r.route=[];r.destination=null;r.blockedSince=null;r.yielding=null;r.trafficRetryAt=0;}if(ambient)r.ambient=null;r.bubble='';r.bubbleUntil=0;r.celebrateUntil=0;}this.office.clearExchanges?.();}
   canRelax(record){
     if((this.mission.requests||[]).some(r=>r.agentId===record.id&&r.status==='pending'))return false;
     return !this.connected||['stopped','interrupted','completed','idle'].includes(this.mission.status)||['idle','completed','stopped','interrupted','queued'].includes(record.agent.status);
   }
   updateAmbient(record){
+    if(record.yielding)return;
     if(!this.canRelax(record)||this.replaying||this.current&&[this.current.mover,this.current.host].includes(record))return;
     if(!record.ambient&&!record.route.length&&!record.destination&&this.clock>=record.nextAmbientAt){
       if(this.current||this.clock<this.nextAmbientAllowedAt)return;
@@ -223,10 +225,41 @@ export class SceneDirector {
   }
   stopReplay(){this.clear();let index=0;for(const r of this.records.values()){r.actor.root.position.copy(r.actor.home);r.actor.targetRotation=r.actor.homeRotation??(r.key==='boss'?0:Math.PI);r.nextAmbientAt=this.clock+this.ambientTiming.firstDelay+index++*this.ambientTiming.stagger;}this.nextAmbientAllowedAt=this.clock+this.ambientTiming.cooldown;this.onChange();}
   face(record,target){const p=record.actor.root.position,t=target.actor.root.position;record.actor.targetRotation=Math.atan2(t.x-p.x,t.z-p.z);}
+  resolveTraffic(){
+    // Only a mutual wait needs arbitration. Park the higher ID off the lower
+    // ID's route, preserving its real goal until the other walker has passed.
+    const waiting=[...this.records.values()].filter(r=>r.actor.root.visible!==false&&r.destination&&!r.route.length&&r.blockedSince!==null&&!r.yielding);
+    for(let i=0;i<waiting.length;i++)for(let j=i+1;j<waiting.length;j++){
+      const [priority,yielder]=[waiting[i],waiting[j]].sort((a,b)=>a.id.localeCompare(b.id));
+      if(this.clock<priority.trafficRetryAt||this.clock<yielder.trafficRetryAt)continue;
+      if(priority.yielding||yielder.yielding||!blocked(priority.destination,[occupiedBy(yielder.actor,actorEnvelope(priority.actor).radius)])||!blocked(yielder.destination,[occupiedBy(priority.actor,actorEnvelope(yielder.actor).radius)]))continue;
+      const from=priority.actor.root.position,to=priority.destination,length=distance(from,to);
+      if(length<.01)continue;
+      const side={x:-(to.z-from.z)/length,z:(to.x-from.x)/length},origin=yielder.actor.root.position;
+      const clearance=actorEnvelope(priority.actor).radius+actorEnvelope(yielder.actor).radius+PERSON_GAP;
+      const offset=(origin.x-from.x)*side.x+(origin.z-from.z)*side.z,bodyRadius=actorEnvelope(yielder.actor).radius;
+      const others=[...this.records.values()].filter(r=>r!==priority&&r!==yielder&&r.actor.root.visible!==false).map(r=>occupiedBy(r.actor,actorEnvelope(priority.actor).radius));
+      for(const sign of [1,-1])for(const scale of [1.15,1.6,2]){
+        const stage={x:origin.x+side.x*(clearance*scale*sign-offset),z:origin.z+side.z*(clearance*scale*sign-offset)};
+        if(stage.x<ROOM.minX+bodyRadius||stage.x>ROOM.maxX-bodyRadius||stage.z<ROOM.minZ+bodyRadius||stage.z>ROOM.maxZ-bodyRadius)continue;
+        if(!walkable(stage,[...this.peerObstacles(yielder),...this.furnitureObstacles(yielder)]))continue;
+        const route=this.routeFor(yielder,origin,stage);
+        if(!route.length)continue;
+        const future=[stage.x-clearance,stage.x+clearance,stage.z-clearance,stage.z+clearance];
+        if(!this.routeFor(priority,from,to,[...others,future]).length)continue;
+        const goal=yielder.destination,priorityGoal={...priority.destination},lastPath=yielder.lastPath;
+        this.setDestination(yielder,stage,route);
+        yielder.lastPath=lastPath;
+        yielder.yielding={goal,stage,priorityId:priority.id,priorityGoal};
+        return;
+      }
+      priority.trafficRetryAt=yielder.trafficRetryAt=this.clock+1;
+    }
+  }
   startExchange(event){
     const source=this.records.get(event.from),target=this.records.get(event.to);if(!source||!target)return;
     const mover=event.kind==='delegation'?target:source,host=event.kind==='delegation'?source:target;
-    for(const record of [mover,host]){record.ambient=null;record.route=[];record.destination=null;record.blockedSince=null;record.nextAmbientAt=this.clock+this.ambientTiming.interval;}
+    for(const record of [mover,host]){record.ambient=null;record.route=[];record.destination=null;record.blockedSince=null;record.yielding=null;record.nextAmbientAt=this.clock+this.ambientTiming.interval;}
     const p=host.actor.root.position,from=mover.actor.root.position;
     const distance=Math.max(1.5,actorEnvelope(mover.actor).radius+actorEnvelope(host.actor).radius+.4);
     const options=[[distance,0],[-distance,0],[0,distance],[0,-distance],[distance*.8,distance*.8],[-distance*.8,distance*.8],[distance*.8,-distance*.8],[-distance*.8,-distance*.8]].map(([x,z])=>this.routeFor(mover,from,{x:p.x+x,z:p.z+z})).filter(route=>route.length);
@@ -242,6 +275,11 @@ export class SceneDirector {
     if(!this.current&&this.queue.length){const event=this.queue.shift();if(event.historical||Date.now()-Date.parse(event.createdAt)<45000)this.startExchange(event);}
     for(const r of this.records.values()){
       let mode=this.canRelax(r)?'idle':r.base?.mode||'idle';if(this.replaying)mode='idle';
+      if(r.yielding&&!r.route.length&&!r.destination){const priority=this.records.get(r.yielding.priorityId);
+        if(!priority||!priority.yielding&&(!priority.destination||distance(priority.actor.root.position,r.yielding.priorityGoal)<.05)){
+          const goal=r.yielding.goal;r.yielding=null;this.setDestination(r,goal);
+        }
+      }
       this.updateAmbient(r);
       if(r.route.length&&!r.destination)r.destination={...r.route.at(-1)};
       if(r.destination&&!r.route.length&&this.clock>=r.routeRetryAt)this.setDestination(r,r.destination);
@@ -261,12 +299,13 @@ export class SceneDirector {
       r.actor.wantsSeat=Boolean(r.actor.hasSeat)&&!r.route.length&&atHome&&!inExchange&&!['walking','stretching','celebrating'].includes(mode);
       this.updateDesk(r,r.actor.wantsSeat&&!r.ambient&&!r.destination&&!r.route.length&&!inExchange);
     }
+    this.resolveTraffic();
     const c=this.current;
     if(c){
       if(c.phase==='approaching'&&c.mover.blockedSince!==null&&this.clock-c.mover.blockedSince>4){c.remote=true;c.phase='talking';c.until=this.clock+3.4;c.mover.route=[];c.mover.destination=null;c.mover.blockedSince=null;this.onChange();}
-      if(c.phase==='approaching'&&!c.mover.route.length&&!c.mover.destination){c.phase='talking';c.until=this.clock+3.4;this.face(c.mover,c.host);this.face(c.host,c.mover);c.source.bubble=c.event.text;c.source.bubbleUntil=c.until;this.onChange();}
+      if(c.phase==='approaching'&&!c.mover.yielding&&!c.mover.route.length&&!c.mover.destination){c.phase='talking';c.until=this.clock+3.4;this.face(c.mover,c.host);this.face(c.host,c.mover);c.source.bubble=c.event.text;c.source.bubbleUntil=c.until;this.onChange();}
       if(c.phase==='talking'){c.source.actor.mode='talking';c.target.actor.mode='listening';if(this.clock>=c.until){this.setDestination(c.mover,c.mover.actor.home);c.host.actor.targetRotation=c.host.actor.homeRotation??(c.host.key==='boss'?0:Math.PI);if(c.remote)this.finishExchange();else{c.phase='returning';this.onChange();}}}
-      if(this.current&&c.phase==='returning'&&(!c.mover.route.length&&!c.mover.destination||c.mover.blockedSince!==null&&this.clock-c.mover.blockedSince>4)){c.mover.actor.targetRotation=c.mover.actor.homeRotation??(c.mover.key==='boss'?0:Math.PI);this.finishExchange();}
+      if(this.current&&c.phase==='returning'&&(!c.mover.yielding&&!c.mover.route.length&&!c.mover.destination||c.mover.blockedSince!==null&&this.clock-c.mover.blockedSince>4)){c.mover.actor.targetRotation=c.mover.actor.homeRotation??(c.mover.key==='boss'?0:Math.PI);this.finishExchange();}
     }else if(this.replaying&&!this.queue.length){this.replaying=false;this.onChange();}
   }
   record(id){return this.records.get(id);}
