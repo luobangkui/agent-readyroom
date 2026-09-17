@@ -26,7 +26,19 @@ export function findRoute(start,end,dynamicObstacles=[]){
   if(clearSegment(from,to,dynamicObstacles))return [to];
   const obstacles=[...OBSTACLES,...dynamicObstacles];
   const corners=obstacles.flatMap(([x1,x2,z1,z2])=>[{x:x1-.035,z:z1-.035},{x:x1-.035,z:z2+.035},{x:x2+.035,z:z1-.035},{x:x2+.035,z:z2+.035}]).filter(p=>walkable(p,dynamicObstacles));
-  const points=[from,to,...corners],cost=points.map(()=>Infinity),prev=[],visited=new Set();cost[0]=0;
+  // Corner-only visibility graphs can disconnect when a large walking body
+  // makes several nearby obstacles overlap. Add safe points around the room
+  // perimeter so a return route can take the outer aisle instead of giving up.
+  const boundary=[];
+  const divisions=12;
+  for(let i=0;i<=divisions;i++){
+    const t=i/divisions;
+    boundary.push({x:ROOM.minX+.04+(ROOM.maxX-ROOM.minX-.08)*t,z:ROOM.minZ+.04});
+    boundary.push({x:ROOM.minX+.04+(ROOM.maxX-ROOM.minX-.08)*t,z:ROOM.maxZ-.04});
+    boundary.push({x:ROOM.minX+.04,z:ROOM.minZ+.04+(ROOM.maxZ-ROOM.minZ-.08)*t});
+    boundary.push({x:ROOM.maxX-.04,z:ROOM.minZ+.04+(ROOM.maxZ-ROOM.minZ-.08)*t});
+  }
+  const points=[from,to,...corners,...boundary.filter(p=>walkable(p,dynamicObstacles))],cost=points.map(()=>Infinity),prev=[],visited=new Set();cost[0]=0;
   while(visited.size<points.length){let current=-1;for(let i=0;i<points.length;i++)if(!visited.has(i)&&(current<0||cost[i]<cost[current]))current=i;if(current<0||!Number.isFinite(cost[current]))break;if(current===1){const route=[];for(let i=1;i!==0;i=prev[i])route.unshift(points[i]);return route;}visited.add(current);
     for(let i=0;i<points.length;i++){if(visited.has(i))continue;const candidate=cost[current]+distance(points[current],points[i]);if(candidate<cost[i]&&clearSegment(points[current],points[i],dynamicObstacles)){cost[i]=candidate;prev[i]=current;}}
   }return [];
@@ -79,7 +91,7 @@ export class SceneDirector {
     if(fresh){this.clear();this.records.clear();this.seen=new Set((mission.messages||[]).map(m=>m.id));}
     const attached=new Set(bindings.values());for(const [id,record] of this.records)if(!attached.has(id)){if(this.current&&[this.current.mover,this.current.host].includes(record))this.clear();this.records.delete(id);}
     for(const [key,id] of bindings){const agent=mission.agents.find(a=>a.id===id),actor=this.office.actors[key];if(!agent||!actor)continue;let record=this.records.get(id);
-      if(!record){const index=this.records.size;record={id,key,actor,agent,base:null,route:[],destination:null,routeRetryAt:0,blockedSince:null,bubble:'',bubbleUntil:0,celebrateUntil:0,ambient:null,ambientCount:index,seed:seedFor(id),desk:null,nextAmbientAt:this.clock+this.ambientTiming.firstDelay+index*this.ambientTiming.stagger};this.records.set(id,record);actor.root.position.copy(actor.home);actor.targetRotation=actor.homeRotation??(key==='boss'?0:Math.PI);}
+      if(!record){const index=this.records.size;record={id,key,actor,agent,base:null,route:[],lastPath:[],relaxedNavigation:false,destination:null,routeRetryAt:0,blockedSince:null,bubble:'',bubbleUntil:0,celebrateUntil:0,ambient:null,ambientCount:index,seed:seedFor(id),desk:null,nextAmbientAt:this.clock+this.ambientTiming.firstDelay+index*this.ambientTiming.stagger};this.records.set(id,record);actor.root.position.copy(actor.home);actor.targetRotation=actor.homeRotation??(key==='boss'?0:Math.PI);}
       const previous=record.agent.status;record.agent=agent;record.base=activityFor(agent,mission,connected);actor.setRole?.(agent.role);
       if(record.ambient&&!this.canRelax(record)){record.ambient=null;if(['waiting','blocked'].includes(record.base.mode)){record.route=[];record.destination=null;}else this.setDestination(record,actor.home);}
       if(!fresh&&previous!=='completed'&&agent.status==='completed'&&connected&&!['stopped','interrupted'].includes(mission.status)){record.celebrateUntil=this.clock+2.2;record.nextAmbientAt=this.clock+this.ambientTiming.interval;}
@@ -93,12 +105,80 @@ export class SceneDirector {
     this.onChange();
   }
   setEnabled(value){this.enabled=value;this.onChange();}
+  furnitureObstacles(record,relaxed=false){
+    const padding=Math.min(.3,Math.max(0,actorEnvelope(record.actor).radius-.2));
+    // Chair docking is handled by the seated animation; reserve other chairs
+    // at their full body clearance along with the rest of the furniture.
+    return OBSTACLES.map((box,index)=>{
+      if(index>=OBSTACLES.length-CHAIR_OBSTACLES.length){
+        const station=WORKSTATIONS[index-(OBSTACLES.length-CHAIR_OBSTACLES.length)];
+        if(distance(station.home,record.actor.home)<.05)return null;
+        const extra=padding+.2;return [box[0]-extra,box[1]+extra,box[2]-extra,box[3]+extra];
+      }
+      return [box[0]-padding,box[1]+padding,box[2]-padding,box[3]+padding];
+    }).filter(Boolean).map(box=>{
+      if(!relaxed)return box;
+      // Keep the room's authored .2m obstacle margin, but drop the extra
+      // avatar-sized padding when the strict graph has no connected route.
+      const trim=Math.min(.3,Math.max(0,actorEnvelope(record.actor).radius-.2));
+      return [box[0]+trim,box[1]-trim,box[2]+trim,box[3]-trim];
+    });
+  }
+  movementObstacles(record,from,to){
+    const furniture=this.furnitureObstacles(record,record.relaxedNavigation);
+    // Homes and interaction spots are docking points close to furniture.
+    // Only their short approach/exit may enter the reserved clearance area.
+    return [...this.peerObstacles(record),...furniture.filter(box=>{
+      const inside=p=>blocked(p,[box]);
+      const docking=point=>[record.actor.home,record.destination].filter(Boolean).some(anchor=>
+        inside(anchor)&&distance(point,anchor)<=actorEnvelope(record.actor).radius*2);
+      return !((inside(from)&&docking(from))||(inside(to)&&docking(to)));
+    })];
+  }
   peerObstacles(exclude){const radius=actorEnvelope(exclude.actor).radius;return [...this.records.values()].filter(record=>record!==exclude&&record.actor.root.visible!==false).map(record=>occupiedBy(record.actor,radius));}
-  routeFor(record,start,end){return findRoute(start,end,this.peerObstacles(record));}
+  routeFor(record,start,end){
+    const peers=this.peerObstacles(record),furniture=this.furnitureObstacles(record),obstacles=[...peers,...furniture];
+    const access=point=>{
+      if(walkable(point,obstacles))return [{point,link:[]}];
+      const touching=furniture.filter(box=>blocked(point,[box])),remaining=[...peers,...furniture.filter(box=>!touching.includes(box))];
+      if(!walkable(point,remaining))return [];
+      const candidates=touching.flatMap(([x1,x2,z1,z2])=>[
+        {x:x1-.035,z:point.z},{x:x2+.035,z:point.z},{x:point.x,z:z1-.035},{x:point.x,z:z2+.035},
+        ...[x1-.035,x2+.035].flatMap(x=>[z1-.035,z2+.035].map(z=>({x,z})))
+      ]).filter(p=>distance(point,p)<=actorEnvelope(record.actor).radius*2&&walkable(p,obstacles)&&clearSegment(point,p,remaining));
+      return candidates.sort((a,b)=>distance(point,a)-distance(point,b)).slice(0,4).map(p=>({point:p,link:[p]}));
+    };
+    let best=[],length=Infinity;
+    for(const from of access(start))for(const to of access(end)){
+      const middle=findRoute(from.point,to.point,obstacles);if(!middle.length)continue;
+      const route=[...from.link,...middle,...(to.link.length?[{x:end.x,z:end.z}]:[])],candidate=routeLength(start,route);
+      if(candidate<length){best=route;length=candidate;}
+    }
+    if(best.length){record.relaxedNavigation=false;return best;}
+    // A large custom avatar can make the conservative, body-sized furniture
+    // envelopes overlap even though the authored floor still has an aisle.
+    // Retry with only the built-in furniture margin before declaring the
+    // destination unreachable. Live peer clearance remains enforced.
+    const relaxedFurniture=this.furnitureObstacles(record,true),relaxed=[...peers,...relaxedFurniture];
+    const fallback=findRoute(start,end,relaxed);
+    record.relaxedNavigation=fallback.length>0;
+    return fallback;
+  }
   setDestination(record,point,plannedRoute){
     if(distance(record.actor.root.position,point)<.04){record.route=[];record.destination=null;record.blockedSince=null;return;}
     if(!record.destination||distance(record.destination,point)>.01)record.blockedSince=null;
-    record.destination={x:point.x,z:point.z};record.route=plannedRoute??this.routeFor(record,record.actor.root.position,point);record.routeRetryAt=this.clock+.5;
+    const destination={x:point.x,z:point.z};
+    let route=plannedRoute??this.routeFor(record,record.actor.root.position,point);
+    // A walking avatar can be wider than its seated pose. If the return
+    // search is temporarily sealed by nearby chairs, reuse the path it just
+    // walked out on; movement still validates every segment against live
+    // occupants and can replan on the next retry.
+    if(!route.length&&distance(point,record.actor.home)<.05&&record.lastPath.length>1){
+      const last=record.lastPath.at(-1),sameEnd=last&&distance(last,record.actor.root.position)<.2;
+      if(sameEnd)route=record.lastPath.slice(0,-1).reverse();
+    }
+    record.destination=destination;record.route=route;record.routeRetryAt=this.clock+.5;
+    if(route.length&&distance(point,record.actor.home)>=.05)record.lastPath=[{x:record.actor.root.position.x,z:record.actor.root.position.z},...route.map(p=>({x:p.x,z:p.z}))];
     if(record.route.length)record.blockedSince=null;else record.blockedSince??=this.clock;
   }
   clear(ambient=true){this.queue=[];this.current=null;this.replaying=false;for(const r of this.records.values()){if(ambient||!r.ambient){r.route=[];r.destination=null;r.blockedSince=null;}if(ambient)r.ambient=null;r.bubble='';r.bubbleUntil=0;r.celebrateUntil=0;}this.office.clearExchanges?.();}
@@ -167,7 +247,7 @@ export class SceneDirector {
       if(r.destination&&!r.route.length&&this.clock>=r.routeRetryAt)this.setDestination(r,r.destination);
       if(r.route.length){const position=r.actor.root.position,next=r.route[0],dist=distance(position,next),step=dt*(r.actor.modelMeta?.walkSpeed??(r.actor.assetMotion?1.2:2.5)),ready=r.actor.prepareWalk?.()??true;
         const candidate=dist<=step?next:{x:position.x+(next.x-position.x)/Math.max(dist,Number.EPSILON)*step,z:position.z+(next.z-position.z)/Math.max(dist,Number.EPSILON)*step};
-        if(ready&&clearSegment(position,candidate,this.peerObstacles(r))){if(dist<=step){position.x=next.x;position.z=next.z;r.route.shift();}else{position.x=candidate.x;position.z=candidate.z;r.actor.targetRotation=Math.atan2(next.x-position.x,next.z-position.z);}r.blockedSince=null;if(!r.route.length)r.destination=null;}
+        if(ready&&clearSegment(position,candidate,this.movementObstacles(r,position,candidate))){if(dist<=step){position.x=next.x;position.z=next.z;r.route.shift();}else{position.x=candidate.x;position.z=candidate.z;r.actor.targetRotation=Math.atan2(next.x-position.x,next.z-position.z);}r.blockedSince=null;if(!r.route.length)r.destination=null;}
         else if(ready){r.route=[];r.routeRetryAt=this.clock+.5;r.blockedSince??=this.clock;
           if(r.ambient?.phase==='walking'&&this.clock-r.blockedSince>8){r.ambient.phase='returning';r.destination=null;r.route=[];r.blockedSince=null;this.setDestination(r,r.actor.home);}
         }

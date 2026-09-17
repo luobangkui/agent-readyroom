@@ -101,3 +101,12 @@ test('an unreachable meeting stays in place instead of forcing a walk through oc
   assert.equal(director.current.remote,true);director.update(.1);assert.equal(actors.p0.wantsSeat,true);assert.equal(actors.p1.wantsSeat,true);
   director.update(4);assert.equal(director.current,null);for(const actor of Object.values(actors))assert.ok(actor.root.position.equals(actor.home));
 });
+
+test('walking bodies clear furniture corners along the whole route',()=>{
+  const {director,actors}=simpleScene([LEISURE.window]);
+  const route=director.routeFor(director.record('a0'),actors.p0.home,LEISURE.reading);
+  assert.ok(route.length);
+  // The work island is 5.58 x 2.58; reserve a whole body, not only its root.
+  const radius=actorEnvelope(actors.p0).radius,box=new THREE.Box3(new THREE.Vector3(-1.69-2.79-radius,0,-1.29-radius),new THREE.Vector3(-1.69+2.79+radius,3,1.29+radius));
+  assert.equal(firstIntrusion(actors.p0.home,route,box),null,'walking body clips the work island corner');
+});

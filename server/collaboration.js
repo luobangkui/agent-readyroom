@@ -110,16 +110,25 @@ export function recordReport(m,a,args){
     if(c.criterion!==undefined&&(!Number.isInteger(c.criterion)||c.criterion<0||c.criterion>=work.acceptance.length))fail('检查项 criterion 必须对应本工作单验收条件的编号（从 0 开始）。');
     return {name:text(c.name,'检查名称',300),result:c.result,evidence:text(c.evidence,'检查证据',4000),...(c.criterion!==undefined?{criterion:c.criterion}:{})};
   });
+  // A ready report whose checks all pass but whose criterion indexes miss some
+  // acceptance item looks complete to its author, yet the graph gate stalls
+  // every consumer on it forever. Unindexed checks never count toward
+  // coverage, so reject the mismatch here with the exact missing indexes.
+  if(args.verdict==='ready'&&checks.every(c=>c.result==='passed')){
+    const missing=(work.acceptance||[]).map((criterion,index)=>checks.some(c=>c.criterion===index)?null:`criterion ${index}（${String(criterion).slice(0,60)}）`).filter(Boolean);
+    if(missing.length)fail(`verdict 为 ready 且全部检查通过时，每条验收条件都必须有一条 criterion=编号 且 result=passed 的检查，未编号的检查不计入验收覆盖。缺少：${missing.join('、')}。请给对应检查补上 criterion（验收条件从 0 开始编号）后重新提交，或如实改判 blocked。`);
+  }
   const report={summary:text(args.summary,'交付摘要'),artifacts:list(args.artifacts,'成果路径').map(p=>scopePath(m.cwd,p)),checks,risks:list(args.risks,'风险',20).map(r=>text(r,'风险',2000)),verdict:args.verdict,createdAt:new Date().toISOString()};
   work.report=report;for(const review of m.workItems)if(review.status==='completed'&&review.reviewOf.includes(work.id))review.stale=true;return work;
 }
 export function reportReady(w){return w.report?.verdict==='ready'&&w.report.checks.length>0&&w.report.checks.every(c=>c.result==='passed')&&(w.acceptance||[]).every((_,i)=>w.report.checks.some(c=>c.criterion===i&&c.result==='passed'))&&!w.violations?.length;}
-export function qualityIssues(m){
-  const items=(m.workItems||[]).filter(w=>!w.replacedBy&&(!w.reviewOf.length||w.reviewOf.some(id=>!m.workItems.find(t=>t.id===id)?.replacedBy))),issues=[];
-  const ready=w=>w.status==='completed'&&reportReady(w);
+const reviewableWork=m=>(m.workItems||[]).filter(w=>!w.replacedBy&&(!w.reviewOf.length||w.reviewOf.some(id=>!m.workItems.find(t=>t.id===id)?.replacedBy)));
+// Evidence gaps on settled work only: problems a re-filed office_report or a
+// fresh independent review can fix right now, ignoring anything still running.
+export function evidenceIssues(m){
+  const items=reviewableWork(m),ready=w=>w.status==='completed'&&reportReady(w),issues=[];
   for(const w of items){
-    if(active.has(w.status)){issues.push(`${w.id} 尚未结束`);continue;}
-    if(w.status!=='completed'){issues.push(`${w.id} 未成功完成`);continue;}
+    if(active.has(w.status)||w.status!=='completed')continue;
     if(!w.report){issues.push(`${w.id} 缺少 office_report 交付证据`);continue;}
     if(!ready(w))issues.push(`${w.id} 有阻塞、验收项未覆盖、检查未通过/未执行或范围越界`);
     for(const output of w.produces||[])if(!(m.artifactVersions||[]).some(v=>v.name===output.name&&v.version===output.version&&v.status==='validated'))issues.push(`${w.id} 的阶段成果 ${output.name}:${output.version} 尚未独立验证`);
@@ -128,11 +137,19 @@ export function qualityIssues(m){
   }
   return issues;
 }
+export function qualityIssues(m){
+  const items=reviewableWork(m),issues=[];
+  for(const w of items){
+    if(active.has(w.status)){issues.push(`${w.id} 尚未结束`);continue;}
+    if(w.status!=='completed'){issues.push(`${w.id} 未成功完成`);continue;}
+  }
+  return [...issues,...evidenceIssues(m)];
+}
 export function workContext(m,a){
   const work=workFor(m,a);if(!work)return '';
   const dependencies=work.dependsOn.map(id=>m.workItems.find(w=>w.id===id)||m.agents.find(a=>a.id===id)).filter(Boolean);
   const targets=work.reviewOf.map(id=>m.workItems.find(w=>w.id===id)).filter(Boolean);
   const brief=w=>({id:w.id,agentId:w.agentId||w.id,task:(w.task||'').slice(0,500),scope:w.scope,acceptance:w.acceptance,report:w.report?{...w.report,checks:w.report.checks.map(c=>({...c,evidence:c.evidence.slice(0,1200)}))}:null,...(!w.report?{result:(w.result||'').slice(0,6000)}:{})});
   const {task,report,result,attempts,threadId,threadAgentId,...contract}=work;
-  return `\n\n本轮协作工作单（以本轮范围为准）：${JSON.stringify(contract)}\n只读取 readPaths 与 writePaths 范围，只修改 writePaths 范围；空写入列表表示本轮只读。共享构建输出、锁文件、依赖安装也属于写入，不能漏报。完整执行权限不代表可以越过本轮分工范围。\n依赖成果：${JSON.stringify(dependencies.map(brief))}\n待复核成果：${JSON.stringify(targets.map(brief))}\n结束前调用 office_report（workId=${work.id}）记录真实检查、成果与风险；复核者必须独立验证，不把作者自述当证据。`;
+  return `\n\n本轮协作工作单（以本轮范围为准）：${JSON.stringify(contract)}\n只读取 readPaths 与 writePaths 范围，只修改 writePaths 范围；空写入列表表示本轮只读。共享构建输出、锁文件、依赖安装也属于写入，不能漏报。完整执行权限不代表可以越过本轮分工范围。\n依赖成果：${JSON.stringify(dependencies.map(brief))}\n待复核成果：${JSON.stringify(targets.map(brief))}\n结束前调用 office_report（workId=${work.id}）记录真实检查、成果与风险；checks 必须用 criterion=验收条件编号（从 0 开始）逐条覆盖本单 acceptance，不带 criterion 的补充检查不计入验收覆盖，全部通过但缺编号覆盖的 ready 报告会被拒绝。复核者必须独立验证，不把作者自述当证据。`;
 }

@@ -184,9 +184,35 @@ test('restored Codex sessions receive the current office MCP tools without repla
 
 test('all acceptance criteria must be covered and a changed report invalidates its old review',async t=>{
   const f=await fixture(t),builder=await assign(f,'builder',scope([],['src']),{acceptance:['主路径','边界条件']});
-  await report(f,builder,{checks:[{name:'主路径',criterion:0,result:'passed',evidence:'只有一个检查'}]});complete(f,builder);await tick();assert.ok(qualityIssues(f.m).some(i=>i.includes('验收项未覆盖')));
+  // 全部通过但缺编号覆盖的 ready 报告在提交时就被拒绝，未编号的边界检查不计入覆盖。
+  await assert.rejects(report(f,builder,{checks:[{name:'主路径',criterion:0,result:'passed',evidence:'只有一个检查'}]}),/criterion 1（边界条件）/);
+  await assert.rejects(report(f,builder,{checks:[{name:'主路径',criterion:0,result:'passed',evidence:'主路径'},{name:'边界检查',result:'passed',evidence:'没有编号不算覆盖'}]}),/未编号的检查不计入验收覆盖/);
+  await report(f,builder,{verdict:'blocked',checks:[{name:'主路径',criterion:0,result:'passed',evidence:'主路径'}]});
+  assert.equal(workFor(f.m,builder).report.verdict,'blocked');
+  // 含 not_run 的 ready 报告如实落库，由质量门标记验收未覆盖。
+  await report(f,builder,{checks:[{name:'主路径',criterion:0,result:'passed',evidence:'主路径'},{name:'边界条件',criterion:1,result:'not_run',evidence:'尚未执行'}]});complete(f,builder);await tick();assert.ok(qualityIssues(f.m).some(i=>i.includes('验收项未覆盖')));
   await report(f,builder);const tech=await assign(f,'tech',scope(['src']),{reviewOf:[builder.workId]});await report(f,tech);complete(f,tech);assert.deepEqual(qualityIssues(f.m),[]);
   await report(f,builder,{summary:'作者修改了交付描述'});assert.equal(workFor(f.m,tech).stale,true);
+});
+
+test('a stalled graph blocker still spends its two quality rounds before parking',async t=>{
+  const f=await fixture(t),builder=f.m.agents.find(a=>a.role==='builder');
+  const work=(id,key,over={})=>({id,protocol:2,key,task:`${key} 任务`,eligibleRoles:['builder'],agentId:null,role:null,scope:scope(['.'],[]),acceptance:['证据留档'],dependsOn:[],requires:[],produces:[],reviewOf:[],resources:[],priority:0,timeoutSeconds:1800,status:'waiting_input',report:null,violations:[],generation:0,retries:0,attempts:[],createdAt:new Date().toISOString(),stateSince:new Date().toISOString(),timings:{},waitReason:{kind:'input',message:'等待检查输入'},...over});
+  // 复现图阻塞叠加证据缺项的卡局：补验单已完成但报告缺 criterion 覆盖（下游永远等
+  // 证据），旧复核单又依赖已被替代的工作，成为谁也推进不了的死节点。
+  const dep=work('work_dep0001','deploy-a-1c',{status:'completed',agentId:builder.id,role:'builder',acceptance:['证据留档','不触碰面板'],report:{summary:'补验完成',artifacts:[],checks:[{name:'主检查',criterion:0,result:'passed',evidence:'证据'},{name:'边界',result:'passed',evidence:'未编号不计入覆盖'}],risks:[],verdict:'ready',createdAt:new Date().toISOString()}});
+  const old=work('work_old0003','run-exec',{status:'stopped',replacedBy:'work_new0004'});
+  const zombie=work('work_rev0002','review-exec-old',{eligibleRoles:['tech'],dependsOn:['work_old0003'],waitReason:{kind:'failed_input',target:'work_old0003',message:'依赖 run-exec 失败、中断或已替代'}});
+  const fresh=work('work_new0004','admin-session-v2',{dependsOn:['work_dep0001'],waitReason:{kind:'evidence',target:'work_dep0001',message:'等待 deploy-a-1c 补齐通过的交付证据'}});
+  f.m.harnessVersion=2;f.m.workItems=[dep,old,zombie,fresh];
+  complete(f,f.boss);await tick();
+  assert.equal(f.boss.status,'running');assert.match(f.boss.task,/程序调度发现以下工作无法推进/);assert.match(f.boss.task,/证据缺项/);assert.equal(f.m.qualityRounds||0,0);
+  complete(f,f.boss);await tick();
+  assert.equal(f.m.qualityRounds,1);assert.equal(f.boss.status,'running');assert.match(f.boss.task,/证据补全 1\/2/);assert.match(f.boss.task,/work_dep0001 有阻塞/);
+  complete(f,f.boss);await tick();
+  assert.equal(f.m.qualityRounds,2);assert.match(f.boss.task,/证据补全 2\/2/);
+  complete(f,f.boss);await tick();
+  assert.equal(f.m.status,'needs_attention');assert.equal(f.m.phase,'blocked');assert.equal(f.boss.status,'completed');
 });
 
 test('collaboration panel exposes scope, evidence and missing checks and escapes untrusted content',()=>{

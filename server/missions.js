@@ -10,7 +10,7 @@ import {assignProfile,ensureRoster} from './roster.js';
 import {ProjectStore,projectDirectory} from './projects.js';
 import {canArchive} from '../src/mission-archive.js';
 import {normalizeRoleAvatars} from '../src/mission-avatars.js';
-import {effectiveScope,scopeOverlap,scopeConflictMessage,sharedScopeAdvisory,workFor,workDependencies,makeWork,setWorkStatus,invalidateReviews,recordReport,reportReady,qualityIssues,workContext,scopePath} from './collaboration.js';
+import {effectiveScope,scopeOverlap,scopeConflictMessage,sharedScopeAdvisory,workFor,workDependencies,makeWork,setWorkStatus,invalidateReviews,recordReport,reportReady,qualityIssues,evidenceIssues,workContext,scopePath} from './collaboration.js';
 import {prepareGraph,graphPending,graphRunning,candidates,resourceBlocker,independent,claim,transition,setWaitReason,finishAttempt,prepareArtifact,validateArtifact,artifactContext,artifactKey,requirements,harnessMetrics,digest,humanWork,prepareSplit,callbackWork} from './harness.js';
 import {topoLayers,criticalPath} from '../src/work-graph.js';
 
@@ -426,8 +426,22 @@ export class MissionService extends EventEmitter {
         if(unresolved.some(w=>['scope','resource','model','provider','storage'].includes(w.waitReason?.kind))){this.touch(m);return;}
         const blocked=unresolved.map(w=>`${w.id}: ${w.waitReason?.message||'等待输入或资源'}`),signature=blocked.join('\n');
         if(signature!==m.lastGraphBlocker&&lead.status==='completed'){
-          m.lastGraphBlocker=signature;lead.status='queued';lead.coordinationOnly=true;lead.task=`程序调度发现以下工作无法推进，需要规划决策（不要轮询）：\n${signature}\n检查图中的缺失契约验证、失败依赖或未释放资源。只修正必要工作；不要让所有任务从头再来。`;this.schedule();
-        }else if(signature===m.lastGraphBlocker){m.status='needs_attention';m.phase='blocked';}
+          const evidence=evidenceIssues(m);
+          m.lastGraphBlocker=signature;lead.status='queued';lead.coordinationOnly=true;
+          lead.task=`程序调度发现以下工作无法推进，需要规划决策（不要轮询）：\n${signature}\n检查图中的缺失契约验证、失败依赖或未释放资源。只修正必要工作；不要让所有任务从头再来。${evidence.length?`\n另有已结束工作单的证据缺项，可一并处理（缺报告就唤醒原作者用 office_report 的 workId 补交，ready 报告必须让每条验收条件都有 criterion=编号 且 passed 的检查；返工或重审用 replaces）：\n${evidence.join('\n')}`:''}`;this.schedule();
+        }else if(signature===m.lastGraphBlocker){
+          // The boss has already seen this exact blocker. Parking right here
+          // used to swallow the quality follow-up promise: evidence gaps that
+          // a re-filed report or a fresh review could fix were never surfaced,
+          // so consumers waited forever on a "completed" dependency. Spend the
+          // same two quality rounds before parking the mission.
+          const evidence=evidenceIssues(m);
+          if(m.mode==='team'&&lead.status==='completed'&&evidence.length&&(m.qualityRounds||0)<2){
+            m.quality={status:'pending',issues:qualityIssues(m)};m.accepted=false;m.qualityRounds=(m.qualityRounds||0)+1;
+            lead.status='queued';lead.coordinationOnly=true;
+            lead.task=`图仍被以下问题卡住（证据补全 ${m.qualityRounds}/2）：\n${signature}\n已结束的工作单还有可直接修复的证据缺项：\n${evidence.join('\n')}\n先调用 office_team 核对。缺报告可唤醒原作者并用 office_report 的 workId 补交（ready 报告必须让每条验收条件都有 criterion=编号 且 passed 的检查）；修复或重新复核要使用 replaces 替代旧工作单。不要重复已完成工作，不得把未通过说成已交付。`;this.schedule();
+          }else{m.status='needs_attention';m.phase='blocked';}
+        }
       }
       this.touch(m);return;
     }

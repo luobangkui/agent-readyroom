@@ -89,3 +89,36 @@ test('Mizukage follows an office route with a visible walk after the stand-up tr
   for(let frame=0;frame<80;frame++){director.update(1/60);actor.updateAssetPose(1/60);}
   assert.equal(actor.assetMotion.state,'walking');assert.ok(actor.root.position.distanceTo(start)>1.5,'actor did not make visible walking progress');
 });
+
+test('Mizukage repeated sit and stand transitions keep every bone continuous',async t=>{
+  const actor=createCharacter(new THREE.Group(),'boss',0,0,primitives,getTheme('konoha'),{loader});t.after(()=>actor.disposeAppearance());
+  actor.hasSeat=actor.wantsSeat=true;actor.mode='idle';actor.setAvatar('mizukage-custom');await actor.modelReady;
+  const bones=[];actor.modelRoot.traverse(node=>{if(node.isBone)bones.push(node);});
+  const snapshot=()=>{actor.root.updateMatrixWorld(true);return bones.map(bone=>bone.getWorldPosition(new THREE.Vector3()));};
+  let previous=snapshot(),worst=0,where='';
+  for(let cycle=0;cycle<3;cycle++)for(const seated of [false,true]){
+    actor.wantsSeat=seated;
+    for(let frame=0;frame<90;frame++){
+      actor.updateAssetPose(1/60);const current=snapshot();
+      current.forEach((p,i)=>{const jump=p.distanceTo(previous[i]);if(jump>worst){worst=jump;where=`${bones[i].name}, ${actor.assetMotion.state}, frame ${frame}`;}});previous=current;
+    }
+  }
+  assert.ok(worst<.12,`bone jumps ${worst.toFixed(3)} world units in one frame (${where})`);
+});
+
+test('Mizukage can return to its chair when the other desks are occupied',async t=>{
+  const station=WORKSTATIONS[0],actor=createCharacter(new THREE.Group(),'boss',station.home.x,station.home.z,primitives,getTheme('konoha'),{loader});
+  t.after(()=>actor.disposeAppearance());
+  actor.hasSeat=actor.wantsSeat=true;actor.homeRotation=actor.targetRotation=actor.root.rotation.y=station.facing;actor.mode='idle';actor.setAvatar('mizukage-custom');await actor.modelReady;
+  const actors={boss:actor};
+  for(let index=1;index<WORKSTATIONS.length;index++){
+    const peer=WORKSTATIONS[index];actors[`peer-${index}`]={id:`peer-${index}`,root:{position:new THREE.Vector3(peer.home.x,.02,peer.home.z),visible:true,rotation:{y:peer.facing}},home:new THREE.Vector3(peer.home.x,.02,peer.home.z),homeRotation:peer.facing,hasSeat:true,wantsSeat:true,mode:'idle'};
+  }
+  const director=new SceneDirector({actors},()=>{},{ambient:{firstDelay:100000}}),ids=Object.keys(actors),mission={id:'mizukage-return',status:'idle',agents:ids.map(id=>({id,role:id==='boss'?'boss':'builder',status:'idle'})),messages:[],events:[],requests:[]};
+  director.sync(mission,new Map(ids.map(id=>[id,id])));const record=director.record('boss');director.setDestination(record,LEISURE.coffee);
+  for(let frame=0;frame<60*90&&record.destination;frame++){director.update(1/60);actor.updateAssetPose(1/60);}
+  assert.ok(actor.root.position.distanceTo(new THREE.Vector3(LEISURE.coffee.x,.02,LEISURE.coffee.z))<.05,'Mizukage did not reach the leisure spot');
+  director.setDestination(record,actor.home);assert.ok(record.route.length,'return route should be available even with a larger walking pose');
+  for(let frame=0;frame<60*90&&record.destination;frame++){director.update(1/60);actor.updateAssetPose(1/60);}
+  assert.ok(actor.root.position.distanceTo(actor.home)<.05,`Mizukage stalled away from home: ${JSON.stringify({position:actor.root.position.toArray(),route:record.route,destination:record.destination,blocked:record.blockedSince})}`);
+});
